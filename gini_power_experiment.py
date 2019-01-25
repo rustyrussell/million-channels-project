@@ -90,12 +90,18 @@ def main():
     #experiments
     nodes, channels = jsonToObject(jn)
     #power law
-    # params, params_covariance = powerLawExperiment(nodes)
+    alpha, covariance = powerLawExperiment(nodes)
+    print("power Law experiment results: ")
+    print("alpha: "+str(alpha[0]))
+    print("covariance: " + str(covariance[0][0]))
+
+    print()
     #gini
     giniCoefficient = giniCoefficientExperiment(nodes)
-    print(giniCoefficient)
+    print("gini coefficient results:")
+    print("gini: " + str(giniCoefficient))
 
-    print("done")
+    plt.show()
 
 def powerLawExperiment(nodes):
     """
@@ -108,7 +114,6 @@ def powerLawExperiment(nodes):
     alpha, covariance = powerLawRegressionParam(x, yProb)
     plotPowLaw(powerLawFunc, alpha[0], (1.75, 1000, .25))
     plt.autoscale()
-    plt.show()
     return alpha, covariance
 
 def giniCoefficientExperiment(nodes):
@@ -235,7 +240,7 @@ def plotPowLaw(func, a, rangeTup):
     plt.xlabel("channels")
     plt.ylabel("probability")
     # plt.box(on=True)
-    plt.figtext(.45, .85, "y = x^(-2.3)")
+    plt.figtext(.45, .85, "y = x^(-" + str(a) + ")")
 def freqDataToProbData(y, nodeNumber):
     """
     gives prob distribution which is used for power law calculation
