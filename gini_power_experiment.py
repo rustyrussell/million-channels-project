@@ -86,18 +86,42 @@ def main():
     """
     fp = open(channelFileName)
     jn = loadJson(fp)
+
+    #experiments
     nodes, channels = jsonToObject(jn)
-    nodeDuplicatesTest = testIfNodesDuplicates(nodes)
-    x, y = getChannelFreqData(nodes)
-    y = freqDataToProbData(y, len(nodes))
-    simpleFreqPlot(x,y)
-    params, params_covariance = powerLawRegressionParam(x, y)
-    plotPowLaw(powerLawFunc, params[0], (1.75,1000,.25))
-    plt.autoscale()
-    plt.show()
+    #power law
+    # params, params_covariance = powerLawExperiment(nodes)
+    #gini
+    giniCoefficient = giniCoefficientExperiment(nodes)
+    print(giniCoefficient)
+
     print("done")
 
+def powerLawExperiment(nodes):
+    """
+    The power law experiment fits a regression to the data and plots the data and the regression power law curve
+    :return: alpha, covariance
+    """
+    x, y = getChannelFreqData(nodes)
+    yProb = freqDataToProbData(y, len(nodes))
+    simpleFreqPlot(x, yProb)
+    alpha, covariance = powerLawRegressionParam(x, yProb)
+    plotPowLaw(powerLawFunc, alpha[0], (1.75, 1000, .25))
+    plt.autoscale()
+    plt.show()
+    return alpha, covariance
 
+def giniCoefficientExperiment(nodes):
+    """
+    finds gini coefficient
+    :return: gini coefficient
+    """
+    channelCountList = []
+    for node in nodes:
+        channelCountList += [float(node.channelCount)]
+    channelCountListArray = np.array(channelCountList)
+    giniCoefficient = gini(channelCountListArray)
+    return giniCoefficient
 
 def jsonToObject(jn):
     """
@@ -196,6 +220,7 @@ def simpleFreqPlot(x, y, xscale=False, yscale=False):
     if yscale:
         plt.yscale('log')
 
+#power law
 
 def plotPowLaw(func, a, rangeTup):
     """
@@ -229,8 +254,8 @@ def powerLawRegressionParam(x, y):
     Performs a regression analysis on power law function
     :return:
     """
-    params, params_covariance = optimize.curve_fit(powerLawFunc, x, y)
-    return params, params_covariance
+    alpha, covariance = optimize.curve_fit(powerLawFunc, x, y)
+    return alpha, covariance
 
 
 def powerLawFunc(x, a):
@@ -245,6 +270,34 @@ def powerLawFunc(x, a):
     for e in x:
         y += [c*(pow(e, -1*a))]
     return y
+
+
+#gini coefficient
+
+"""
+The function below is from https://github.com/oliviaguest/gini
+"""
+def gini(array):
+    """Calculate the Gini coefficient of a numpy array."""
+    # based on bottom eq:
+    # http://www.statsdirect.com/help/generatedimages/equations/equation154.svg
+    # from:
+    # http://www.statsdirect.com/help/default.htm#nonparametric_methods/gini.htm
+    # All values are treated equally, arrays must be 1d:
+    array = array.flatten()
+    if np.amin(array) < 0:
+        # Values cannot be negative:
+        array -= np.amin(array)
+    # Values cannot be 0:
+    array += 0.0000001
+    # Values must be sorted:
+    array = np.sort(array)
+    # Index per array element:
+    index = np.arange(1,array.shape[0]+1)
+    # Number of array elements:
+    n = array.shape[0]
+    # Gini coefficient:
+    return ((np.sum((2 * index - n  - 1) * array)) / (n * np.sum(array)))
 
 
 
