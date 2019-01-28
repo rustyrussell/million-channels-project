@@ -4,4 +4,3 @@ pylightning
 sortedcontainers
 matplotlib
 scipy
-

@@ -10,71 +10,11 @@ from matplotlib import pyplot as plt
 from scipy import optimize
 from math import pow
 import numpy as np
+import networkClasses
 
 #fields
 
 channelFileName = "data/channels_1-18-18.json"
-
-
-#classes
-
-class Node:
-    """
-    Node class
-    """
-    def __init__(self, nodeid, channels=None):
-        if channels == None:
-            self.channels = []
-            self.value = 0
-            self.channelCount = 0
-        else:
-            self.channelList = channels
-            for channel in channels:
-                self.value += channel.value
-            self.channelCount = len(channels)
-        self.nodeid = nodeid
-
-    def addChannel(self, channel):
-        bisect.insort_left(self.channels, channel)
-        self.value += channel.value
-        self.channelCount += 1
-
-    def __lt__(self, otherNode):
-        return self.nodeid < otherNode.nodeid
-
-    def __gt__(self, otherNode):
-        return self.nodeid > otherNode.nodeid
-
-    def __eq__(self, otherNode):
-        return self.nodeid == otherNode.nodeid
-
-
-class Channel:
-    """
-    Channel class
-    """
-    def __init__(self, party1, party2, json):
-        self.party1 = party1
-        self.party2 = party2
-        self.json = json
-        self.channelid = json["short_channel_id"]
-        self.value = json["satoshis"]
-
-    def setParty1(self, party1):
-        self.party1 = party1
-
-    def setParty2(self, party2):
-        self.party2 = party2
-
-    def __lt__(self, otherChannel):
-        return self.channelid < otherChannel.channelid
-
-    def __gt__(self, otherChannel):
-        return self.channelid > otherChannel.channelid
-
-    def __eq__(self, otherChannel):
-        return self.channelid == otherChannel.channelid
-
 
 
 #functions
@@ -90,11 +30,15 @@ def main():
     #experiments
     nodes, channels = jsonToObject(jn)
     #power law
-    alpha, covariance = powerLawExperiment(nodes)
+    params, covariance, x, y, c= powerLawExperiment(nodes)
     print("power Law experiment results: ")
-    print("alpha: "+str(alpha[0]))
-    print("covariance: " + str(covariance[0][0]))
-
+    print("alpha: " + str(params[0]))
+    print("covariance: ", end="" )
+    print(covariance)
+    xs = [1,2,3,4,5]
+    #c, cProbTotal = findBestC(params[0])
+    # print(powerLawFuncC(xs, params[0], c))
+    print(c)
     print()
     #gini
     giniCoefficient = giniCoefficientExperiment(nodes)
@@ -103,18 +47,40 @@ def main():
 
     plt.show()
 
+
+def findBestC(a):
+    target = 1
+    bestC = 0
+    bestCProb = 0
+    currC = 0
+    cProb = 0
+    y = []
+    while (target-cProb) <= (target - bestCProb):
+        bestC = currC
+        bestCProb = cProb
+        currC += .01
+        y = powerLawFuncC(range(1, 100000), a, currC)
+        cProb = sum(y)
+        if cProb > 1: break
+    print(y)
+    print(bestC, bestCProb)
+    return bestC, bestCProb
+
 def powerLawExperiment(nodes):
     """
     The power law experiment fits a regression to the data and plots the data and the regression power law curve
     :return: alpha, covariance
     """
     x, y = getChannelFreqData(nodes)
-    yProb = freqDataToProbData(y, len(nodes))
+    x, y, nodeNumber = removeOutliers(x, y, len(nodes))
+    yProb = freqDataToProbData(y, nodeNumber)
     simpleFreqPlot(x, yProb)
-    alpha, covariance = powerLawRegressionParam(x, yProb)
-    plotPowLaw(powerLawFunc, alpha[0], (1.75, 1000, .25))
+    params, covariance = powerLawRegressionParam(x, yProb)
+    c, cProb = findBestC(params[0])
+    params = [params[0], c]
+    plotPowLaw(powerLawFuncC, params, (1, 1000, 1))
     plt.autoscale()
-    return alpha, covariance
+    return params, covariance, x, y, c
 
 def giniCoefficientExperiment(nodes):
     """
@@ -143,10 +109,10 @@ def jsonToObject(jn):
         currChannel = channelsJson[i]
         nodeid1 = channelsJson[i]["source"]
         nodeid2 = channelsJson[i]["destination"]
-        channelObj = Channel(None, None, currChannel)
+        channelObj = networkClasses.Channel(None, None, currChannel)
 
-        nodeObj1 = Node(nodeid1)
-        nodeObj2 = Node(nodeid2)
+        nodeObj1 = networkClasses.Node(nodeid1)
+        nodeObj2 = networkClasses.Node(nodeid2)
 
         node1Exists = search(nodes, nodeObj1)
         if node1Exists != -1:
@@ -227,7 +193,7 @@ def simpleFreqPlot(x, y, xscale=False, yscale=False):
 
 #power law
 
-def plotPowLaw(func, a, rangeTup):
+def plotPowLaw(func, params, rangeTup):
     """
     plot a function over x range define in rangeTup
     :param func: function that maps x->y
@@ -235,12 +201,12 @@ def plotPowLaw(func, a, rangeTup):
     :return: None
     """
     rr = np.arange(rangeTup[0], rangeTup[1], rangeTup[2])
-    plt.plot(rr, func(rr, a))
+    plt.plot(rr, func(rr, params[0], params[1]))
     plt.title("power law reg. on channel freq. prob. distribution")
     plt.xlabel("channels")
     plt.ylabel("probability")
     # plt.box(on=True)
-    plt.figtext(.45, .85, "y = x^(-" + str(a) + ")")
+    # plt.figtext(.45, .85, "y = x^(-" + str(a) + ")")
 def freqDataToProbData(y, nodeNumber):
     """
     gives prob distribution which is used for power law calculation
@@ -254,6 +220,18 @@ def freqDataToProbData(y, nodeNumber):
     return newy
 
 
+def removeOutliers(x, y, nodeNumber):
+    """
+    Removing outliers to get a better fit
+    :param x:
+    :param y:
+    :return:
+    """
+
+    x= x[0:-5]
+    y = y[0:-5]
+    return x, y, nodeNumber
+
 def powerLawRegressionParam(x, y):
     """
     Performs a regression analysis on power law function
@@ -263,18 +241,60 @@ def powerLawRegressionParam(x, y):
     return alpha, covariance
 
 
-def powerLawFunc(x, a):
+def powerLawFunc(xs, a):
     """
     Power law function.
-    :param x: x list of data
+    :param xs: x list of data
     :param a: alpha
     :return: y
     """
-    c = 1  #c is chosen so that integral 0<x<inf = 1.
+    #c is chosen so that integral 0<x<inf = 1.
     y = []
-    for e in x:
-        y += [c*(pow(e, -1*a))]
+    constantY = dict()
+    constantY[1] = 0.2038
+    constantY[2] = 0.1329
+    constantY[3] = 0.1086
+    constantY[4] = 0.0713
+
+    for x in xs:
+        if x < 5:
+            y += [constantY[x]]
+        else:
+            y += [(pow(x, -1*a))]     #power law
+        # y += [c*(pow(x, -1*a))*pow(e, -1*x*b)]        #power law with cutoff
+        # y += [pow(e, -1*a*x)]     #exponential
+        #
     return y
+
+
+def powerLawFuncC(xs, a, c):
+    """
+    Power law function.
+    :param xs: x list of data
+    :param a: alpha
+    :return: y
+    """
+    #c is chosen so that integral 0<x<inf = 1.
+    y = []
+    constantY = dict()
+    constantY[1] = 0.2038
+    constantY[2] = 0.1329
+    constantY[3] = 0.1086
+    constantY[4] = 0.0713
+
+    for x in xs:
+        if x < 5:
+            y += [constantY[x]]
+        else:
+            y += [(c*pow(x, -1*a))]     #power law
+        # y += [c*(pow(x, -1*a))*pow(e, -1*x*b)]        #power law with cutoff
+        # y += [pow(e, -1*a*x)]     #exponential
+        #
+    return y
+
+def c_calculation(alpha, xmin=1):
+    c = (alpha-1)*pow(xmin, alpha-1)
+    return c
 
 
 #gini coefficient
@@ -357,5 +377,5 @@ def testProbDataSumsTo1(y):
     print(s)
     return s == 1
 
-
-main()
+if __name__ == "__main__":
+    main()
