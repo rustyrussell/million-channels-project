@@ -8,7 +8,7 @@ Builds the network with a backtracking algorithm and network measures defined in
 import random
 import networkClasses
 import utility
-import power_law_reg
+import powerLawReg
 
 
 
@@ -28,13 +28,13 @@ channelFileName = "data/channels_1-18-18.json"
 #functions
 
 def main():
-    fp = open(power_law_reg.channelFileName)
+    fp = open(powerLawReg.channelFileName)
     jn = utility.loadJson(fp)
     nodes, channels = utility.jsonToObject(jn)
     params, x, yProb = analyzeCurrentNetwork(nodes)
     utility.setRandSeed(randSeed)
     newNodes = nodeDistribution(params, finalNumChannels)   #eventually a config command can turn on and off the rand dist
-    power_law_reg.powerLawExperiment(newNodes, reg=False, graph=True, params=params, bounds=(0,6000,1))
+    powerLawReg.powerLawExperiment(newNodes, reg=False, graph=True, params=params, bounds=(0,6000,1))
     # newNodes = buildNetwork(newNodes, 0)
 
 
@@ -44,7 +44,7 @@ def analyzeCurrentNetwork(nodes):
     :param nodes:
     :return:
     """
-    params, covariance, x, yProb = power_law_reg.powerLawExperiment(nodes, graph=False, completeNetwork=True)
+    params, covariance, x, yProb = powerLawReg.powerLawExperiment(nodes, graph=False, completeNetwork=True)
     #TODO add call to clustering coefficient function
 
     return params, x, yProb
@@ -71,12 +71,12 @@ def nodeDistribution(params, finalNumChannels):
     a,b,c = params[0],params[1],params[2]
     nodeidCounter = 0
     totalChannels = 0
-    pMax = power_law_reg.powerLawFuncC([1], a, b, c)[0]
+    pMax = powerLawReg.powerLawFuncC([1], a, b, c)[0]
     r = random.uniform(0, pMax)
-    x = power_law_reg.inversePowLawFuncC([r],a,b,c)[0]
+    x = powerLawReg.inversePowLawFuncC([r],a,b,c)[0]
     channelsForNode = round(x, 0)
-    while channelsForNode > power_law_reg.maxChannelsPerNode:
-        x = power_law_reg.inversePowLawFuncC([r], a, b, c)
+    while channelsForNode > powerLawReg.maxChannelsPerNode:
+        x = powerLawReg.inversePowLawFuncC([r], a, b, c)
         channelsForNode = round(x, 0)
     totalChannels += channelsForNode
 
@@ -85,10 +85,10 @@ def nodeDistribution(params, finalNumChannels):
         nodes += [n]
         nodeidCounter += 1
         r = random.uniform(0, pMax)
-        x = power_law_reg.inversePowLawFuncC([r], a, b, c)[0]
+        x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
         channelsForNode = round(x, 0)
-        while channelsForNode > power_law_reg.maxChannelsPerNode:
-            x = power_law_reg.inversePowLawFuncC([r], a, b, c)
+        while channelsForNode > powerLawReg.maxChannelsPerNode:
+            x = powerLawReg.inversePowLawFuncC([r], a, b, c)
             channelsForNode = round(x, 0)
         totalChannels += channelsForNode
 
