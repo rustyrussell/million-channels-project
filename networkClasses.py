@@ -24,6 +24,9 @@ class Node:
         self.value += channel.value
         self.channelCount += 1
 
+    def setMaxChannels(self,num):
+        self.maxChannels = num
+
     def __lt__(self, otherNode):
         return self.nodeid < otherNode.nodeid
 
@@ -61,4 +64,3 @@ class Channel:
         return self.channelid == otherChannel.channelid
 
 
-d

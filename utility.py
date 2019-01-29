@@ -2,6 +2,7 @@
 import bisect
 import json
 import networkClasses
+import random
 
 # helper functions
 
@@ -73,3 +74,13 @@ def jsonToObject(jn):
             bisect.insort_left(channels, channelObj)
 
     return nodes, channels
+
+
+def setRandSeed(seed):
+    """
+    set random seed for random module (not for cryptographic purposes)
+    :param seed:some int
+    :return: None
+    """
+    random.seed(seed)
+

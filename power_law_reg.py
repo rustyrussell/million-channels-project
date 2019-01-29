@@ -13,6 +13,7 @@ import utility
 #fields
 
 channelFileName = "data/channels_1-18-18.json"
+maxChannelsPerNode = 100000
 
 
 #functions
@@ -28,33 +29,44 @@ def main():
     #experiments
     nodes, channels = utility.jsonToObject(jn)
     #power law
-    params, covariance, x, y, c= powerLawExperiment(nodes)
+    params, covariance, x, y= powerLawExperiment(nodes, graph=True, completeNetwork=True)
     print("power Law experiment results: ")
-    print("alpha,beta,c: " + str(params[0]) + "," + str(params[1]) + "," + str(c))
+    print("alpha,beta,c: " + str(params[0]) + "," + str(params[1]) + "," + str(params[2]))
     print("covariance: ", end="" )
     print(covariance)
     xs = [1,2,3,4]
-    ys = powerLawFuncC(xs, params[0], params[1],c)
+    ys = powerLawFuncC(xs, params[0], params[1],params[2])
     print("x=1-4: ", end="")
     print(ys)
+    testx = inversePowLawFuncC(ys, params[0], params[1],params[2])
+    print("")
 
+def setMaxChannels(nodes):
+    for n in nodes:
+        n.setMaxChannels(n.channelCount)
 
 #regression and power law function
-def powerLawExperiment(nodes):
+def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwork=False, bounds=(0, 1000, 1)):
     """
     The power law experiment fits a regression to the data and plots the data and the regression power law curve
     :return: alpha, covariance
     """
+    if completeNetwork:
+        setMaxChannels(nodes)
     x, y = getChannelFreqData(nodes)
     x, y, nodeNumber = removeOutliers(x, y, len(nodes))
     yProb = freqDataToProbData(y, nodeNumber)
-    simpleFreqPlot(x, yProb)
-    params, covariance = powerLawRegressionParam(x, yProb)
-    c, cProb = findBestC(params[0], params[1])
-    params = [params[0], params[1], c]
-    plotPowLaw(powerLawFuncC, params, (0, 1000, 1))
-    plt.autoscale()
-    return params, covariance, x, y, c
+    covariance = None
+    if reg:  #for doing regression
+        params, covariance = powerLawRegressionParam(x, yProb)
+        c, cProb = findBestC(params[0], params[1])
+        params = [params[0], params[1], c]
+    if graph:    #for plotting power law curve from experiment against new nodes scatterplot (called in build network)
+        simpleFreqPlot(x, yProb)
+        plotPowLaw(powerLawFuncC, params, bounds)
+        plt.autoscale()
+        plt.show()
+    return params, covariance, x, yProb
 
 
 def powerLawFunc(xs, a, b):
@@ -83,6 +95,20 @@ def powerLawFuncC(xs, a, b, c):
         y += [(c*pow(x+b, -1*a))]
     return y
 
+def inversePowLawFuncC(ys, a, b ,c):
+    """
+    The reverse pow law is used for randomly generating the network
+    :param ys: y values
+    :param a: alpha
+    :param b: beta
+    :param c: c scaling constant
+    :return: x's
+    """
+    xs = []
+    for y in ys:
+        xs += [(c/y)**(1/a) - b]
+    return xs
+
 def getChannelFreqData(nodes):
     """
     x axis is # of channels
@@ -92,7 +118,7 @@ def getChannelFreqData(nodes):
     """
     channelCountList = []
     for node in nodes:
-        channelCountList += [node.channelCount]
+        channelCountList += [node.maxChannels]
     x = []
     y = []
     j = 0
@@ -165,7 +191,7 @@ def findBestC(a, b):
         bestC = currC
         bestCProb = cProb
         currC += .01
-        y = powerLawFuncC(range(1, 100000), a, b, currC)
+        y = powerLawFuncC(range(1, maxChannelsPerNode), a, b, currC)
         cProb = sum(y)
         if cProb > 1: break
     return bestC, bestCProb
