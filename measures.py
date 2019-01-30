@@ -1,7 +1,7 @@
 """
 Contains measures for the network creation backtracking algo defined in build_network.py
 """
-
+import utility
 import numpy as np
 
 """
@@ -28,4 +28,76 @@ def gini(array):
     n = array.shape[0]
     # Gini coefficient:
     return ((np.sum((2 * index - n  - 1) * array)) / (n * np.sum(array)))
+
+def clustering(nodes):
+    """
+    calculate clustering which is defined as C(p) = edges_between_neighbors/total_possible_between_neightbors
+    :param nodes: nodes
+    :return: average clustering
+    """
+    clusterList = []
+    clusterDict = dict()        # building dict just in case we want to return it and use it in the future
+    for i in range(0, len(nodes)):
+        node = nodes[i]
+        ns = node.neighbors
+        n = len(ns)
+        if n > 1:
+            maxCluster = n*(n-1)/2
+            cluster = 0
+            for neighbor in ns:
+                nns = neighbor.neighbors
+                for neighborNeighbor in nns:
+                    if neighborNeighbor != node and neighborNeighbor != neighbor and neighborNeighbor in ns:
+                        cluster += 1
+            percent = cluster/maxCluster
+            clusterDict[node.nodeid] = percent
+            clusterList += [percent]
+        else:
+            clusterDict[node.nodeid] = 0
+    s = sum(clusterList)
+    averageCluster = s/len(nodes)
+    return averageCluster, clusterDict
+
+
+def getClusterFreqData(nodes, clusterDict):
+    """
+    x axis is # of channels
+    y axis is # of nodes
+    :param nodes: list of nodes (sorted)
+    :return: (x, y) in the form of an x list and y list (easy format for graphing in matplotlib)
+    """
+    channelCountList = []
+    for node in nodes:
+        channelCountList += [node]
+    x = []
+    y = []
+    j = 0
+    clusterY = []
+    channelCountList.sort(key=utility.channelMaxSortKey)
+    channelsOfPrevNode = None
+    for i in range(0, len(channelCountList)):
+        node = channelCountList[i]
+        channelsOfNodei = node.maxChannels
+        freq = 1
+        if channelsOfPrevNode == None:
+            x = [channelsOfNodei]
+            y = [1]
+            clusterY = [clusterDict[node.nodeid]]
+            channelsOfPrevNode = channelsOfNodei
+        elif channelsOfNodei == channelsOfPrevNode:
+            y[j] += 1
+            clusterY[j] += clusterDict[node.nodeid]
+        else:
+            j += 1
+            x += [channelsOfNodei]
+            y += [1]
+            clusterY += [clusterDict[node.nodeid]]
+            channelsOfPrevNode = channelsOfNodei
+
+    for c in range(0, len(x)):
+        clusterY[c] = clusterY[c] / y[c]
+
+    return x,y,clusterY
+
+
 

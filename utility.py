@@ -84,3 +84,12 @@ def setRandSeed(seed):
     """
     random.seed(seed)
 
+
+
+def channelMaxSortKey(node):
+    """
+    Use in .sort() when you want to sort a list of channels by channelCount
+    :param node: node
+    :return: channelCount
+    """
+    return node.maxChannels

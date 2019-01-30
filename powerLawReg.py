@@ -9,6 +9,7 @@ from scipy import optimize
 from math import pow
 import numpy as np
 import utility
+import measures
 
 #fields
 
@@ -29,17 +30,45 @@ def main():
     #experiments
     nodes, channels = utility.jsonToObject(jn)
     #power law
-    params, covariance, x, y= powerLawExperiment(nodes, graph=True, completeNetwork=True)
+    params, covariance, x, y = powerLawExperiment(nodes, graph=True, completeNetwork=True)
     print("power Law experiment results: ")
     print("alpha,beta,c: " + str(params[0]) + "," + str(params[1]) + "," + str(params[2]))
     print("covariance: ", end="" )
     print(covariance)
-    xs = [1,2,3,4]
+    xs = [1.1,2.3,3.123,4.99993]
     ys = powerLawFuncC(xs, params[0], params[1],params[2])
     print("x=1-4: ", end="")
     print(ys)
     testx = inversePowLawFuncC(ys, params[0], params[1],params[2])
     print("")
+
+    # clusterGraph(nodes, graph=True)
+
+
+def clusterGraph(nodes, reg=True, params=None, graph=False, bounds=(0, 1000, 1)):
+    lawParams, lawCovariance, x, y = powerLawExperiment(nodes, graph=False, completeNetwork=True)
+    print("cluster time")
+    import time
+    t0 = time.time()
+    avgCluster, clusterDict = measures.clustering(nodes)
+    t1 = time.time()
+    print(avgCluster)
+    print(str(t1-t0))
+    covariance = None
+    freqx, freqy, clustery = measures.getClusterFreqData(nodes,clusterDict)
+    if reg:
+        params, covariance = negExpRegParam(x,clustery)
+    if graph:
+        simpleFreqPlot(freqx, clustery)
+        plotNegExp(negExpFunc, params, bounds)
+        plt.autoscale()
+        plt.show()
+
+    print(params)
+    print(covariance)
+
+
+
 
 def setMaxChannels(nodes):
     for n in nodes:
@@ -175,6 +204,22 @@ def powerLawRegressionParam(x, y):
     return alpha, covariance
 
 
+def negExpRegParam(x, y):
+    """
+    Performs a regression analysis on power law function
+    :return:
+    """
+    params, covariance = optimize.curve_fit(negExpFunc, x, y)
+    return params, covariance
+
+
+def negExpFunc(xs, a,b,c):
+    y = []
+    for x in xs:
+        y += [(a**(-x+b))+c]
+    return y
+
+
 def findBestC(a, b):
     """
     Finds best C by finding the C that leads to a prob closest to and not above 1 with an accuracy of .01 for c
@@ -234,7 +279,14 @@ def plotPowLaw(func, params, rangeTup):
     # plt.box(on=True)
     # plt.figtext(.45, .85, "y = x^(-" + str(a) + ")")
 
-
+def plotNegExp(func, params, rangeTup):
+    rr = np.arange(rangeTup[0], rangeTup[1], rangeTup[2])
+    plt.plot(rr, func(rr, params[0], params[1], params[2]))
+    plt.title("channels freq to average cluster reg")
+    plt.xlabel("channels")
+    plt.ylabel("average cluster")
+    # plt.box(on=True)
+    # plt.figtext(.45, .85, "y = x^(-" + str(a) + ")")
 
 # test functions
 
