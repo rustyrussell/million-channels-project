@@ -13,6 +13,7 @@ class Node:
             self.value = 0
             self.channelCount = 0
             self.neighbors = []
+            self.neighborsDict = dict()
         else:
             self.channels = channels
             self.neighbors = []
@@ -36,12 +37,19 @@ class Node:
         self.channelCount += 1
         p1 = channel.node1
         p2 = channel.node2
-        if p1 != self:
-            if p1 not in self.neighbors:
-                self.neighbors += [p1]
-        else:
-            if p2 not in self.neighbors:
+        if p1.nodeid == self.nodeid:
+            if p1.nodeid not in self.neighborsDict:
                 self.neighbors += [p2]
+                self.neighborsDict[p2.nodeid] = 1
+            else:
+                self.neighborsDict[p2.nodeid] += 1
+        else:
+            if p1.nodeid not in self.neighborsDict:
+                self.neighbors += [p1]
+                self.neighborsDict[p1.nodeid] = 1
+            else:
+                self.neighborsDict[p1.nodeid] += 1
+
 
     def setMaxChannels(self,num):
         self.maxChannels = num
@@ -50,6 +58,27 @@ class Node:
         self.channelCount -= 1
         self.channels.remove(channel)
         self.value -= channel.value
+        p1 = channel.node1
+        p2 = channel.node2
+        if p1.nodeid == self.nodeid:
+            if p2.nodeid in self.neighborsDict:
+                cs = self.neighborsDict[p2.nodeid]
+                if cs == 1:
+                    self.neighborsDict.pop(p2.nodeid)
+                    self.neighbors.remove(p2)
+                else:
+                    self.neighborsDict[p2.nodeid] -= 1
+        else:
+            if p1.nodeid in self.neighborsDict:
+                cs = self.neighborsDict[p1.nodeid]
+                if cs == 1:
+                    self.neighborsDict.pop(p1.nodeid)
+                    self.neighbors.remove(p1)
+                else:
+                    self.neighborsDict[p1.nodeid] -= 1
+
+
+
 
     def inNetwork(self):
         return len(self.channels) > 0

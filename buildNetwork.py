@@ -9,7 +9,8 @@ from networkClasses import  *
 import utility
 import powerLawReg
 import copy
-import graph
+# import graph
+import measures
 
 
 ##################### Current network measures to aim for. #####################
@@ -39,8 +40,9 @@ def main():
     newNodes = nodeDistribution(targetNetwork, finalNumChannels)   # eventually a config command can turn on and off the rand dist
     incompleteNetwork = IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     newNetwork = buildNetwork(targetNetwork, incompleteNetwork)
+
     print(len(newNetwork.channels))
-    graph.graph_tool(newNetwork, str(finalNumChannels) + "gini1")
+    # graph.graph_tool(newNetwork, str(finalNumChannels) + "cluster1")
     return newNetwork
 
 
@@ -81,7 +83,11 @@ def buildNetwork(targetNetwork, incompleteNetwork):
             stateChanges = roundRec(currNetwork, targetNetwork, [], [], channelGenParams, 0, 0)
             applyStateChanges(currNetwork, stateChanges)
             currNetwork.addChannels(stateChanges)
-            for i in range(0, channelsPerRound):
+            if len(currNetwork.unfullNodes) < channelsPerRound:
+                shift = len(currNetwork.unfullNodes)
+            else:
+                shift = channelsPerRound
+            for i in range(0, shift):
                 currNetwork.pushUnfull(currNetwork.popUnfull())
             #channelGenParams, bestNetwork = checkpointFunction(currNetwork, bestNetwork, targetNetwork, channelGenParams)
             print("done with round")
@@ -113,8 +119,6 @@ def roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams,
     candidates = generateCandidates(network, currNode, channelGenParams)
     for c in range(0, candidateNumber):
         other = candidates[c]
-        if other.nodeid == 25:
-            print(25)
         channel = network.createNewChannel(currNode, other)
         currChanges += [channel]
         bestChanges = roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams, i+1, t)
@@ -155,6 +159,13 @@ def generateCandidates(incompleteNetwork, node, channelGenParams):
     # targetCluster = analysis.myCluster
     # clusterParams = targetCluster[3]
     # targetClusterY = powerLawReg.negExpFunc(maxChannels, clusterParams[0], clusterParams[1], clusterParams[2])
+    # if myCluster <= targetCluster:
+    #     #gather neighbors of neighbors that you are not connected to
+    #     #check (n-n-n that are connected to n-n)/(total n-n-n)  of each n-of-n
+    #     #choose highest (this is greedy)
+    #     pass
+    # elif myCluster > targetCluster:
+    #     pass
 
 
     # the second candidate will be random
@@ -163,12 +174,19 @@ def generateCandidates(incompleteNetwork, node, channelGenParams):
     else:
         nodesToSelectFrom = incompleteNetwork.partConnNodes
 
-    r = random.randint(0, len(nodesToSelectFrom)-1)
-    randNode = nodesToSelectFrom[r]
+    r1 = random.randint(0, len(nodesToSelectFrom)-1)
+    randNode = nodesToSelectFrom[r1]
     while randNode == node:
-        r = random.randint(0, len(nodesToSelectFrom) - 1)
-        randNode = nodesToSelectFrom[r]
+        r1 = random.randint(0, len(nodesToSelectFrom) - 1)
+        randNode = nodesToSelectFrom[r1]
     candidateList += [randNode]
+
+    # r2 = random.randint(0, len(nodesToSelectFrom)-1)
+    # randNode = nodesToSelectFrom[r2]
+    # while randNode == node:
+    #     r2 = random.randint(0, len(nodesToSelectFrom) - 1)
+    #     randNode = nodesToSelectFrom[r2]
+    # candidateList += [randNode]
 
     return candidateList
 
@@ -266,21 +284,3 @@ def newNodeId(i):        # todo when we starting adding tx to the blockchain
 
 
 main()
-
-
-#defunct
-def addNoise(sortedList):
-    """
-    adds noise to the sorted nodelist by swapping nodes.
-    The first randGenNoiseTrials blocks will use randInt to select a node with noiseProb probability
-    The rest of the blocks will get a swap every 1/noiseProb nodes. This is to reduce computation.
-    :return:
-    """
-    length = len(sortedList)
-    for i in range(0, length):
-        if i < randGenNoiseTrials:
-            #use randint
-            pass
-        else:
-            #every 1/noiseProb nodes do a swap
-            pass
