@@ -260,7 +260,6 @@ class Analysis:
     def analyze(self):
         params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.fullConnNodes, graph=False, completeNetwork=True)   #only fully connected nodes get analyzed
         self.powerLaw = (params, covariance, x, yProb)
-        print("todo: uncomment cluster")
         # avgCluster, clusterDict, freqx, clustery, params, covariance = powerLawReg.cluster(self.network.fullConnNodes, graph=False, completeNetwork=True, bounds=(0, 1000, 1))
         # self.cluster = (clusterDict, freqx, clustery, params, covariance)
 

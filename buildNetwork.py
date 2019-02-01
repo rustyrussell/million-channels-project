@@ -9,7 +9,7 @@ from networkClasses import  *
 import utility
 import powerLawReg
 import copy
-# import graph
+#import graph
 import measures
 
 
@@ -42,7 +42,7 @@ def main():
     newNetwork = buildNetwork(targetNetwork, incompleteNetwork)
 
     print(len(newNetwork.channels))
-    # graph.graph_tool(newNetwork, str(finalNumChannels) + "cluster1")
+    #graph.graph_tool(newNetwork, str(finalNumChannels) + "cluster1_seed2")
     return newNetwork
 
 
@@ -143,7 +143,7 @@ def applyStateChanges(network, channels):
 
 
 
-def generateCandidates(incompleteNetwork, node, channelGenParams):
+def generateCandidates(network, node, channelGenParams):
     """
     Generates candidateNumber number of candidates for backtracking
     :param nodes:
@@ -153,45 +153,98 @@ def generateCandidates(incompleteNetwork, node, channelGenParams):
     """
     candidateList = []
 
-    # maxChannels = node.maxChannels
-    # analysis = channelGenParams.targetNetwork.analysis
-    # myCluster = measures.calcNodeCluster(node)
-    # targetCluster = analysis.myCluster
-    # clusterParams = targetCluster[3]
-    # targetClusterY = powerLawReg.negExpFunc(maxChannels, clusterParams[0], clusterParams[1], clusterParams[2])
-    # if myCluster <= targetCluster:
-    #     #gather neighbors of neighbors that you are not connected to
-    #     #check (n-n-n that are connected to n-n)/(total n-n-n)  of each n-of-n
-    #     #choose highest (this is greedy)
-    #     pass
-    # elif myCluster > targetCluster:
-    #     pass
+    if node.maxChannels > 1:
+        sampleSize = 5
+        # maxChannels = node.maxChannels
+        # analysis = channelGenParams.targetNetwork.analysis
+        # myCluster = measures.calcNodeCluster(node)
+        # targetCluster = analysis.cluster
+        # clusterParams = targetCluster[3]
+        # targetClusterY = powerLawReg.negExpFunc(maxChannels, clusterParams[0], clusterParams[1], clusterParams[2])
+
+        ns = node.neighbors
+        #collecting neighbors of neighbors that are not neighbors or oneself or full
+        nns = []
+        for n in ns:
+            s = n.neighbors
+            for nn in s:
+                if nn not in ns and nn != node and not nn.isFull():
+                    nns += [nn]
+
+        if len(nns) == 0:
+            candidateList += [genRandomCand(network, node)]
+        else:
+            # if myCluster <= targetCluster:
+
+            sample = []
+            for i in range(0, sampleSize):
+                if i+1 > len(nns):
+                    break
+                r = random.randint(0, len(nns)-1)
+                if r not in sample:
+                    sample += [r]
 
 
+            #find nn that has highest (nnn that are in ns)/(total nnn)
+            interconnList = []
+            largest = 0
+            largestNN = None
+            for i in range(0, len(sample)):
+                nn = nns[sample[i]]
+                nnns = nn.neighbors
+                if len(nnns) == 0:
+                    continue
+                elif nn.maxChannels == 1:
+                    continue
+                else:
+                    s = 0
+                    for nnn in nnns:
+                        if nnn in ns:
+                            s += 1
+                    s = s / len(nnns)
+                    interconnList += [(nn, s)]
+                    if largest < s:
+                        largestNN = nn
+                        largest = s
+
+            if largestNN is None:
+                candidateList += [genRandomCand(network, node)]
+            else:
+                candidateList += [largestNN]
+
+
+
+
+
+
+            # if myCluster <= targetCluster:
+            #     #gather neighbors of neighbors that you are not connected to
+            #     #choose highest (this is greedy)
+            #     pass
+            # elif myCluster > targetCluster:
+            #     pass
+
+    else:
+        candidateList += [genRandomCand(network, node)]
+
+    candidateList += [genRandomCand(network, node)]
+
+    return candidateList[0:candidateNumber]
+
+
+def genRandomCand(network, node):
     # the second candidate will be random
     if node.inNetwork():
-        nodesToSelectFrom = incompleteNetwork.disconnNodes + incompleteNetwork.partConnNodes
+        nodesToSelectFrom = network.disconnNodes + network.partConnNodes
     else:
-        nodesToSelectFrom = incompleteNetwork.partConnNodes
+        nodesToSelectFrom = network.partConnNodes
 
-    r1 = random.randint(0, len(nodesToSelectFrom)-1)
+    r1 = random.randint(0, len(nodesToSelectFrom) - 1)
     randNode = nodesToSelectFrom[r1]
     while randNode == node:
         r1 = random.randint(0, len(nodesToSelectFrom) - 1)
         randNode = nodesToSelectFrom[r1]
-    candidateList += [randNode]
-
-    # r2 = random.randint(0, len(nodesToSelectFrom)-1)
-    # randNode = nodesToSelectFrom[r2]
-    # while randNode == node:
-    #     r2 = random.randint(0, len(nodesToSelectFrom) - 1)
-    #     randNode = nodesToSelectFrom[r2]
-    # candidateList += [randNode]
-
-    return candidateList
-
-
-
+    return randNode
 
 def checkpointFunction(network, targetNetwork, currChanges, bestChanges, channelGenParams):
     """
