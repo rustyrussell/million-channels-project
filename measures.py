@@ -39,24 +39,35 @@ def clustering(nodes):
     clusterDict = dict()        # building dict just in case we want to return it and use it in the future
     for i in range(0, len(nodes)):
         node = nodes[i]
-        ns = node.neighbors
-        n = len(ns)
-        if n > 1:
-            maxCluster = n*(n-1)/2
-            cluster = 0
-            for neighbor in ns:
-                nns = neighbor.neighbors
-                for neighborNeighbor in nns:
-                    if neighborNeighbor != node and neighborNeighbor != neighbor and neighborNeighbor in ns:
-                        cluster += 1
-            percent = cluster/maxCluster
-            clusterDict[node.nodeid] = percent
-            clusterList += [percent]
-        else:
-            clusterDict[node.nodeid] = 0
+        cluster = calcNodeCluster(node)
+        clusterDict[node.nodeid] = cluster
+        clusterList += [cluster]
+
     s = sum(clusterList)
     averageCluster = s/len(nodes)
     return averageCluster, clusterDict
+
+
+def calcNodeCluster(node):
+    """
+    calculate clustering of 1 node
+    :param node:
+    :return:
+    """
+    ns = node.neighbors
+    n = len(ns)
+    if n > 1:
+        maxCluster = n * (n - 1) / 2
+        cluster = 0
+        for neighbor in ns:
+            nns = neighbor.neighbors
+            for neighborNeighbor in nns:
+                if neighborNeighbor != node and neighborNeighbor != neighbor and neighborNeighbor in ns:
+                    cluster += 1
+        percent = cluster / maxCluster
+        return percent
+    else:
+        return 0
 
 
 def getClusterFreqData(nodes, clusterDict):
@@ -98,6 +109,5 @@ def getClusterFreqData(nodes, clusterDict):
         clusterY[c] = clusterY[c] / y[c]
 
     return x,y,clusterY
-
 
 

@@ -10,6 +10,7 @@ from math import pow
 import numpy as np
 import utility
 import measures
+import time
 
 #fields
 
@@ -29,26 +30,27 @@ def main():
 
     #experiments
     nodes, channels = utility.jsonToObject(jn)
-    #power law
-    params, covariance, x, y = powerLawExperiment(nodes, graph=True, completeNetwork=True)
-    print("power Law experiment results: ")
-    print("alpha,beta,c: " + str(params[0]) + "," + str(params[1]) + "," + str(params[2]))
-    print("covariance: ", end="" )
-    print(covariance)
-    xs = [1.1,2.3,3.123,4.99993]
-    ys = powerLawFuncC(xs, params[0], params[1],params[2])
-    print("x=1-4: ", end="")
-    print(ys)
-    testx = inversePowLawFuncC(ys, params[0], params[1],params[2])
-    print("")
+    # #power law
+    # params, covariance, x, y = powerLawExperiment(nodes, graph=True, completeNetwork=True)
+    # print("power Law experiment results: ")
+    # print("alpha,beta,c: " + str(params[0]) + "," + str(params[1]) + "," + str(params[2]))
+    # print("covariance: ", end="" )
+    # print(covariance)
+    # xs = [1.1,2.3,3.123,4.99993]
+    # ys = powerLawFuncC(xs, params[0], params[1],params[2])
+    # print("x=1-4: ", end="")
+    # print(ys)
+    # testx = inversePowLawFuncC(ys, params[0], params[1],params[2])
+    # print("")
 
-    # clusterGraph(nodes, graph=True)
+    #cluster
+    cluster(nodes, graph=True)
 
 
-def clusterGraph(nodes, reg=True, params=None, graph=False, bounds=(0, 1000, 1)):
-    lawParams, lawCovariance, x, y = powerLawExperiment(nodes, graph=False, completeNetwork=True)
-    print("cluster time")
-    import time
+def cluster(nodes, reg=True, params=None, graph=False, completeNetwork=True, bounds=(0, 1000, 1)):
+    # lawParams, lawCovariance, x, y = powerLawExperiment(nodes, graph=False, completeNetwork=True)
+    if completeNetwork:
+        setMaxChannels(nodes)
     t0 = time.time()
     avgCluster, clusterDict = measures.clustering(nodes)
     t1 = time.time()
@@ -57,7 +59,7 @@ def clusterGraph(nodes, reg=True, params=None, graph=False, bounds=(0, 1000, 1))
     covariance = None
     freqx, freqy, clustery = measures.getClusterFreqData(nodes,clusterDict)
     if reg:
-        params, covariance = negExpRegParam(x,clustery)
+        params, covariance = negExpRegParam(freqx,clustery)
     if graph:
         simpleFreqPlot(freqx, clustery)
         plotNegExp(negExpFunc, params, bounds)
@@ -66,6 +68,8 @@ def clusterGraph(nodes, reg=True, params=None, graph=False, bounds=(0, 1000, 1))
 
     print(params)
     print(covariance)
+
+    return avgCluster, clusterDict, freqx, clustery, params, covariance
 
 
 

@@ -5,10 +5,11 @@ Builds the network with a backtracking algorithm and network measures defined in
 """
 
 import random
-import networkClasses
+from networkClasses import  *
 import utility
 import powerLawReg
 import copy
+import graph
 
 
 ##################### Current network measures to aim for. #####################
@@ -19,12 +20,13 @@ gini = 0.7362258902760351     # from gini_power_experiment
 #fields
 noiseProb = .2    #on average, 1 out of every 5 nodes should be random
 randGenNoiseTrials = 10  # the first 10 nodes will use randint the rest will be swapped at an interval of 1 out of every 10
-finalNumChannels = 100 #1000000    # right now it is constant at 1,000,000. #TODO make this variable when the program gets more advanced
+finalNumChannels = 1000 #1000000    # right now it is constant at 1,000,000. #TODO make this variable when the program gets more advanced
 randSeed = 90                  #TODO make this variable when the program gets more advanced
 channelFileName = "data/channels_1-18-18.json"
 backtracksPerCheckpoint = 1
-candidateNumber = 2
+candidateNumber = 1
 channelsPerRound = 10
+attempts = candidateNumber**channelsPerRound
 
 #functions
 
@@ -32,18 +34,18 @@ def main():
     fp = open(powerLawReg.channelFileName)
     jn = utility.loadJson(fp)
     nodes, channels = utility.jsonToObject(jn)
-    analysis = networkClasses.NetworkAnalysis(nodes)
-    analysis.analyze()
-    params = analysis.powerLaw[0]
+    targetNetwork = Network(fullConnNodes=nodes, analysis=True)
     utility.setRandSeed(randSeed)
-    newNodes = nodeDistribution(params, finalNumChannels)   #eventually a config command can turn on and off the rand dist
-    # powerLawReg.powerLawExperiment(newNodes, reg=False, graph=True, params=params, bounds=(0,6000,1))
-    newNodes = buildNetwork(newNodes, analysis)
-    return newNodes
+    newNodes = nodeDistribution(targetNetwork, finalNumChannels)   # eventually a config command can turn on and off the rand dist
+    incompleteNetwork = IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
+    newNetwork = buildNetwork(targetNetwork, incompleteNetwork)
+    print(len(newNetwork.channels))
+    graph.graph_tool(newNetwork, str(finalNumChannels) + "gini1")
+    return newNetwork
 
 
 
-def buildNetwork(nodes, analysis):
+def buildNetwork(targetNetwork, incompleteNetwork):
     """
     iterative algorithm for creating the network. The algorithm works as follows:
     1. go through each node from largest maxChannels to smallest maxChannels
@@ -55,31 +57,41 @@ def buildNetwork(nodes, analysis):
     7. the channel candidates are produced by the parameters the checkpoint creates
     8. the checkpoint creates parameters after each round
     :param nodes:
-    :return:
+    :return: bestNetwork
     """
-    nodes = sortNodesByMaxChannel(nodes)
-    totalChannels = 0
-    params = networkClasses.ChannelGenParams()    # empty params
-    bestNodes = [nodes, []]  #left side are nodes that can fit more channels, right side are nodes that can fit no more channels
-    nodeNum = len(nodes)
-    while (totalChannels + channelsPerRound) <= finalNumChannels:
-        currNodes = bestNodes
+
+    # connect first node to second node (to bootstrap network)
+    incompleteNetwork.unfullNodes.sort(key=utility.channelMaxSortKey, reverse=False)
+    node1 = incompleteNetwork.popUnfull()
+    node2 = incompleteNetwork.popUnfull()
+    incompleteNetwork.pushUnfull(node1)
+    incompleteNetwork.pushUnfull(node2)
+    incompleteNetwork.createNewChannel(node1, node2)
+
+    channelGenParams = ChannelGenParams(targetNetwork, incompleteNetwork)    # empty params
+    bestNetwork = incompleteNetwork
+
+    j = 0
+    while len(bestNetwork.unfullNodes) > 1:    #implicitly (totalChannels + channelsPerRound) <= finalNumChannels
+        currNetwork = bestNetwork
         for t in range(0, backtracksPerCheckpoint):
-            currNodesCopy = copy.deepcopy(currNodes)
-            startingIndex = totalChannels % nodeNum
-            newNodes = roundRec(currNodesCopy, startingIndex, params, analysis, None, 0)
-            params, bestNodes = checkpointFunction(newNodes, bestNodes, params, analysis)
-        totalChannels += channelsPerRound
-        for i in range(len(bestNodes[0])-1, 0, -1): #checks if node is full. if it is, but the node into the "full" list
-            if bestNodes[0][i].isFull():
-                bestNodes[1] += [bestNodes[0][i]]
-                bestNodes[0] = bestNodes[0][0:i] + bestNodes[0][i+1:]
-
-    return bestNodes
-
+            if j == 3:
+                print("3")
+            j += 1
+            stateChanges = roundRec(currNetwork, targetNetwork, [], [], channelGenParams, 0, 0)
+            applyStateChanges(currNetwork, stateChanges)
+            currNetwork.addChannels(stateChanges)
+            for i in range(0, channelsPerRound):
+                currNetwork.pushUnfull(currNetwork.popUnfull())
+            #channelGenParams, bestNetwork = checkpointFunction(currNetwork, bestNetwork, targetNetwork, channelGenParams)
+            print("done with round")
 
 
-def roundRec(nodes, startingIndex, params, analysis, bestNodes, i):
+    return bestNetwork
+
+
+
+def roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams, i, t):
     """
     Backtracks though every permutation (channelsPerRound^candidateNumber permutations)
     :param nodes:
@@ -89,37 +101,45 @@ def roundRec(nodes, startingIndex, params, analysis, bestNodes, i):
     :param j: 0-candidates-1
     :return:
     """
+    nodes = network.unfullNodes
 
-    unfullNodes = nodes[0]
-    currNodeIndex = (startingIndex + i) % len(unfullNodes)
-    currNode = unfullNodes[currNodeIndex]
-    if i == channelsPerRound:
-        params, bestNodes = checkpointFunction(nodes, bestNodes, params, analysis)
-        return bestNodes
+    if i == channelsPerRound or len(nodes) <= 1:  # if rounds complete or no more unfull nodes
+        params, bestChanges = checkpointFunction(network, targetNetwork, currChanges, bestChanges, channelGenParams)
+        return bestChanges
 
-    candidates = generateCandidates(nodes, currNodeIndex, params)
+    currNode = network.popUnfull()    #pop from queue
+    network.pushUnfull(currNode)
+
+    candidates = generateCandidates(network, currNode, channelGenParams)
     for c in range(0, candidateNumber):
-        channel = createNewChannel(currNode, candidates[c])
-        bestNodes = roundRec(nodes, startingIndex, params, analysis, bestNodes, i+1)
-        undoChannel(channel)
+        other = candidates[c]
+        if other.nodeid == 25:
+            print(25)
+        channel = network.createNewChannel(currNode, other)
+        currChanges += [channel]
+        bestChanges = roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams, i+1, t)
+        network.removeChannel(channel) # reverse previous channel add
+        network.unfullNodes = nodes # revert to old unfill queue
+        currChanges = currChanges[0:-1] # revert to old changes
 
-    return bestNodes
+    return bestChanges
 
 
-
-def undoChannel(channel):
+def applyStateChanges(network, channels):
     """
-    deletes channel
-    :param channel: channel
+    once the ideal channel list is created, we apply it and finalize it here
+    :param network: incomplete Network
+    :param channels: channel list
     :return:
     """
-    party1 = channel.party1
-    party2 = channel.party2
-    party1.removeChannel(channel)
-    party2.removeChannel(channel)
+    for c in channels:
+        node1 = c.node1
+        node2 = c.node2
+        network.createNewChannel(node1, node2)
 
 
-def generateCandidates(nodes, index, params):
+
+def generateCandidates(incompleteNetwork, node, channelGenParams):
     """
     Generates candidateNumber number of candidates for backtracking
     :param nodes:
@@ -127,19 +147,39 @@ def generateCandidates(nodes, index, params):
     :param params:
     :return:
     """
-    allNodes = nodes[0] + nodes[1]
+    candidateList = []
+
+    # maxChannels = node.maxChannels
+    # analysis = channelGenParams.targetNetwork.analysis
+    # myCluster = measures.calcNodeCluster(node)
+    # targetCluster = analysis.myCluster
+    # clusterParams = targetCluster[3]
+    # targetClusterY = powerLawReg.negExpFunc(maxChannels, clusterParams[0], clusterParams[1], clusterParams[2])
+
+
+    # the second candidate will be random
+    if node.inNetwork():
+        nodesToSelectFrom = incompleteNetwork.disconnNodes + incompleteNetwork.partConnNodes
+    else:
+        nodesToSelectFrom = incompleteNetwork.partConnNodes
+
+    r = random.randint(0, len(nodesToSelectFrom)-1)
+    randNode = nodesToSelectFrom[r]
+    while randNode == node:
+        r = random.randint(0, len(nodesToSelectFrom) - 1)
+        randNode = nodesToSelectFrom[r]
+    candidateList += [randNode]
+
+    return candidateList
 
 
 
-    return [allNodes[0], allNodes[1]]
 
-
-
-def checkpointFunction(newNodes, bestNodes, oldParams, analysis):
+def checkpointFunction(network, targetNetwork, currChanges, bestChanges, channelGenParams):
     """
     Checkpoint function judges the network by:
     1. making sure ALL nodes with channels are connected
-    2. calculates characteristic path length, average betweenness centrality, and average clustering
+    2. calculates characteristic path length, average betweenness centrality
     3. the "best" network is closest to these 3 measures of the current network. We are trying to minimize the average percent change
 
     When the round is over, create the next round params
@@ -152,10 +192,10 @@ def checkpointFunction(newNodes, bestNodes, oldParams, analysis):
     :return:
     """
 
-    return oldParams, copy.deepcopy(newNodes)   #TODO change
+    return channelGenParams, copy.copy(currChanges) #copy.deepcopy(incompleteNetwork) #TODO change
 
 
-def nodeDistribution(params, finalNumChannels):
+def nodeDistribution(network, finalNumChannels):
     """
     There are two ways to choose the distribution of nodes. We can use randomness based on randint and the prob curve
     or we can create nodes exactly with the percentage of the prob curve.
@@ -164,6 +204,7 @@ def nodeDistribution(params, finalNumChannels):
     :param randomDist: if True, we generate with randint. Otherwise generate proportionally.
     :return: node list
     """
+    params = network.analysis.powerLaw[0]
     nodes = []
     a,b,c = params[0],params[1],params[2]
     nodeidCounter = 0
@@ -178,7 +219,7 @@ def nodeDistribution(params, finalNumChannels):
     totalChannels += channelsForNode
 
     while totalChannels < finalNumChannels:     # this is why I wish python had do-while statements!!!
-        n = networkClasses.Node(nodeidCounter, maxChannels=channelsForNode)
+        n = Node(nodeidCounter, maxChannels=channelsForNode)
         nodes += [n]
         nodeidCounter += 1
         r = random.uniform(0, pMax)
@@ -201,20 +242,6 @@ def sortNodesByMaxChannel(nodes):
     """
     sortedNodes = sorted(nodes, key=utility.channelMaxSortKey, reverse=True)
     return sortedNodes
-
-
-
-def createNewChannel(node1, node2):
-    """
-    creates channel between node1 and node2. NOTE: this does not check if adding this channel breaks the maximum
-    :param node1: node obj
-    :param node2: node obj
-    :return: channel
-    """
-    channel = networkClasses.Channel(node1, node2)
-    node1.addChannel(channel)
-    node2.addChannel(channel)
-    return channel
 
 
 

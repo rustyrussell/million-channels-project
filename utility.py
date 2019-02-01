@@ -3,6 +3,7 @@ import bisect
 import json
 import networkClasses
 import random
+import copy
 
 # helper functions
 
@@ -93,3 +94,12 @@ def channelMaxSortKey(node):
     :return: channelCount
     """
     return node.maxChannels
+
+
+def duplicateIncompleteNetwork(network):
+    return networkClasses.IncompleteNetwork(fullConnNodes=copy.deepcopy(network.fullConnNodes),
+                                            disconnNodes=copy.deepcopy(network.disconnNodes),
+                                            partConnNodes=copy.deepcopy(network.partConnNodes),
+                                            unfullNodes=copy.deepcopy(network.unfullNodes))
+
+

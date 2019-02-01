@@ -14,7 +14,7 @@ class Node:
             self.channelCount = 0
             self.neighbors = []
         else:
-            self.channelList = channels
+            self.channels = channels
             self.neighbors = []
             for channel in channels:
                 self.value += channel.value
@@ -34,8 +34,8 @@ class Node:
         bisect.insort_left(self.channels, channel)
         self.value += channel.value
         self.channelCount += 1
-        p1 = channel.party1
-        p2 = channel.party2
+        p1 = channel.node1
+        p2 = channel.node2
         if p1 != self:
             if p1 not in self.neighbors:
                 self.neighbors += [p1]
@@ -50,6 +50,9 @@ class Node:
         self.channelCount -= 1
         self.channels.remove(channel)
         self.value -= channel.value
+
+    def inNetwork(self):
+        return len(self.channels) > 0
 
     def isFull(self):
         return self.channelCount >= self.maxChannels
@@ -68,22 +71,22 @@ class Channel:
     """
     Channel class
     """
-    def __init__(self, party1, party2, json=None):
-        self.party1 = party1
-        self.party2 = party2
+    def __init__(self, node1, node2, json=None):
+        self.node1 = node1
+        self.node2 = node2
         self.json = json
         if json != None:
             self.channelid = json["short_channel_id"]
             self.value = json["satoshis"]
         else:
             self.value = 1
-            self.channelid = str(self.party1.nodeid) + str(self.party2.nodeid)
+            self.channelid = str(self.node1.nodeid) + str(self.node2.nodeid)
 
-    def setParty1(self, party1):
-        self.party1 = party1
+    def setParty1(self, node1):
+        self.node1 = node1
 
-    def setParty2(self, party2):
-        self.party2 = party2
+    def setParty2(self, node2):
+        self.node2 = node2
 
     def __lt__(self, otherChannel):
         return self.channelid < otherChannel.channelid
@@ -95,19 +98,152 @@ class Channel:
         return self.channelid == otherChannel.channelid
 
 
+
+
+
+class Network:
+    """
+    Network class contains nodes and analysis on the network.
+    """
+    def __init__(self, fullConnNodes, analysis):
+        self.fullConnNodes = fullConnNodes
+        self.channels = []
+        if analysis == True:
+            self.analysis = Analysis(self)
+        elif analysis == False:
+            self.analysis = None
+        else:
+            self.analysis = analysis
+
+    def addChannels(self,channels):
+        self.channels += channels
+
+
+class IncompleteNetwork(Network):     # inherits Network class
+    def __init__(self, fullConnNodes, disconnNodes, partConnNodes=None, unfullNodes=None):
+        Network.__init__(self, fullConnNodes, False)
+        self.disconnNodes = disconnNodes
+        self.unfullNodes = disconnNodes
+        if partConnNodes == None:
+            self.partConnNodes = []
+        else:
+            self.partConnNodes = partConnNodes
+            self.unfullNodes = self.unfullNodes + partConnNodes
+        if unfullNodes != None:
+            self.unfullNodes = unfullNodes
+    def createNewChannel(self, node1, node2):
+        """
+        creates channel between node1 and node2. NOTE: this does not check if adding this channel breaks the maximum
+        :param node1: node obj
+        :param node2: node obj
+        :return: channel
+        """
+        if node1.channelCount == 0:    # if disconnected
+            self.disconnNodes.remove(node1)
+            if node1.maxChannels == 1:
+                self.fullConnNodes += [node1]
+                self.unfullNodes.remove(node1)
+            else:
+                self.partConnNodes += [node1]
+        else:
+            if node1.channelCount == node1.maxChannels - 1:
+                self.fullConnNodes += [node1]
+                self.partConnNodes.remove(node1)
+                self.unfullNodes.remove(node1)
+            else:
+                pass    #it stays in partConnNodes
+        if node2.channelCount == 0:  # if disconnected
+            self.disconnNodes.remove(node2)
+            if node2.maxChannels == 1:
+                self.fullConnNodes += [node2]
+                self.unfullNodes.remove(node2)
+            else:
+                self.partConnNodes += [node2]
+        else:
+            if node2.channelCount == node2.maxChannels - 1:
+                self.fullConnNodes += [node2]
+                self.partConnNodes.remove(node2)
+                self.unfullNodes.remove(node2)
+            else:
+                pass  # it stays in partConnNodes
+
+
+        channel = Channel(node1, node2)
+        node1.addChannel(channel)
+        node2.addChannel(channel)
+
+        return channel
+
+    def removeChannel(self, channel):
+        """
+        deletes channel
+        :param channel: channel
+        :return:
+        """
+        node1 = channel.node1
+        node2 = channel.node2
+        if node1.maxChannels == 1:   # if full
+            self.fullConnNodes.remove(node1)
+            self.disconnNodes += [node1]
+            self.unfullNodes += [node1]
+        elif node1.isFull():
+            self.fullConnNodes.remove(node1)
+            self.partConnNodes += [node1]
+            self.unfullNodes += [node1]
+        elif node1.channelCount == 1: # partial but will be disconnected
+            self.partConnNodes.remove(node1)
+            self.disconnNodes += [node1]
+        if node2.maxChannels == 1:   # if full
+            try:
+                self.fullConnNodes.remove(node2)
+            except:
+                print("error")
+            self.disconnNodes += [node2]
+            self.unfullNodes += [node2]
+        elif node2.isFull():
+            self.fullConnNodes.remove(node2)
+            self.partConnNodes += [node2]
+            self.unfullNodes += [node2]
+        elif node2.channelCount == 1: # partial but will be disconnected
+            self.partConnNodes.remove(node2)
+            self.disconnNodes += [node2]
+        node1.removeChannel(channel)
+        node2.removeChannel(channel)
+
+
+    def pushUnfull(self, node):
+        self.unfullNodes.insert(0, node)
+
+    def popUnfull(self):
+        n = self.unfullNodes[-1]
+        self.unfullNodes = self.unfullNodes[0:-1]
+        return n
+
+
+class Analysis:
+    """
+    Analysis on the network are the power law and cluster experiments
+    """
+    def __init__(self, network):
+        self.network = network
+        network.analysis = self.analyze()
+
+    def analyze(self):
+        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.fullConnNodes, graph=False, completeNetwork=True)   #only fully connected nodes get analyzed
+        self.powerLaw = (params, covariance, x, yProb)
+        print("todo: uncomment cluster")
+        # avgCluster, clusterDict, freqx, clustery, params, covariance = powerLawReg.cluster(self.network.fullConnNodes, graph=False, completeNetwork=True, bounds=(0, 1000, 1))
+        # self.cluster = (clusterDict, freqx, clustery, params, covariance)
+
+
 class ChannelGenParams:
     """
     The parameters that help create an accurate network
     """
-    def __init__(self):
-        pass
+    def __init__(self, newNetwork, targetNetwork):
+        self.targetNetwork = targetNetwork
+        self.newNetwork = newNetwork
 
 
-class NetworkAnalysis:
-    def __init__(self, nodes):
-        self.nodes = nodes
 
-    def analyze(self):
-        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.nodes, graph=False, completeNetwork=True)
-        self.powerLaw = (params, covariance, x, yProb)
 
