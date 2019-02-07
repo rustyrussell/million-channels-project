@@ -2,28 +2,56 @@
 TODO: MANY OF THESE FEILDS SHOULD EVENTUALLY BE CONFIGURABLE ON STARTUP
 """
 
-
-baseDataDir = "/home/jnetti/.lightning/"
-currExperimentDir = "experiments/1/"   # TODO add to config and cmd args in the future. Include a check to make sure that the experiment does not already exist
-
-#buildNetwork
-noiseProb = .2    #on average, 1 out of every 5 nodes should be random
-randGenNoiseTrials = 10  # the first 10 nodes will use randint the rest will be swapped at an interval of 1 out of every 10
-finalNumChannels = 1000 #1000000    # right now it is constant at 1,000,000. #TODO make this variable when the program gets more advanced
-randSeed = 1                  #TODO make this variable when the program gets more advanced
+###buildNetwork.py###
+#can be changed by user:    ##MUST END IN BACKSLASH
+networkName = ""  # ex "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
+finalNumChannels = 1000
+randSeed = 1
 channelFileName = "data/channels_1-18-18.json"
-networkSaveFile = "data/network.data"
+networkSaveFile = "data/" + networkName
 backtracksPerCheckpoint = 1
 candidateNumber = 3
 channelsPerRound = 5
+#cannot be changed by user:
 attempts = candidateNumber**channelsPerRound
 
 
-#power law reg
+###power law reg.py###
+#can be changed by user:
 maxChannelsPerNode = 100000
 
 
-#gossip
-lightningdDir = "/home/jnetti/lightning/c-lightning/lightningd/"
-bitcoinSrcDir = "/home/jnetti/bitcoin/bitcoin/src/"
+###gossip.py###
+#can be changed by user:    ##MUST END IN BACKSLASH
+baseDataDir = ""      # ex "/home/jnetti/.lightning/"
+experimentName = ""   # ex "experTwo" , "7" , etc
+currExperimentDir = "experiments/"
+lightningdDir =  ""             # ex "/home/jnetti/lightning/c-lightning/lightningd/"
+bitcoinSrcDir =  ""             # ex "/home/jnetti/bitcoin/bitcoin/src/"
+#cannot be changed by user:
 bitcoinCliPath = bitcoinSrcDir + "bitcoin-cli"
+
+
+def checkBuildNetworkFields():
+    if networkName == "":
+        print("Fill networkName in config.py with network name for saving network in files and directories")
+        return False
+    return True
+
+def checkGossipFields():
+    if baseDataDir == "":
+        print("Fill baseDataDir in config.py with the path to the lightning base dir (usually /home/<user>/.lightning")
+        return False
+    elif experimentName == "":
+        print("Fill experimentName in config.py with the specific experiment name")
+        return False
+    elif lightningdDir == "":
+        print("Fill lightningdDir in config.py with the path to lightningd directory of c-lightning implementation. Example: /home/myUser/c-lightning/lightningd/")
+        return False
+    elif bitcoinSrcDir == "":
+        print("Fill bitcoinSrcDir in config.py with the path to bitcoin src directory of a bitcoin core implementation. Example: /home/myUser/bitcoin/src/")
+        return False
+    return True
+
+def checkPowerLawFields():
+    return True

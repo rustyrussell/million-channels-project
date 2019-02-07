@@ -315,5 +315,7 @@ def testProbDataSumsTo1(y):
     print(s)
     return s == 1
 
+
+assert(checkPowerLawFields()==True)
 if __name__ == "__main__":
     main()

@@ -334,6 +334,6 @@ def newNodeId(i):        # todo when we starting adding tx to the blockchain
 
 
 
-
+assert(checkBuildNetworkFields()==True)
 if __name__ == "__main__":
     main()

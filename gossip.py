@@ -4,7 +4,6 @@ Generates lightning gossip
 
 
 import wif
-import networkClasses
 import utility
 import buildNetwork
 import pickle
@@ -151,8 +150,9 @@ def killLightningNode(node):
 
 
 
-
-main()
+assert(checkGossipFields() == True)
+if __name__ == "__main__":
+    main()
 
 # testGenPrivKey("0000010000000000000000000000000000000000000000000000000000000001")
 
