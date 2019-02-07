@@ -1,7 +1,7 @@
 
 import bisect
 import json
-import networkClasses
+import common.networkClasses as networkClasses
 import random
 import copy
 

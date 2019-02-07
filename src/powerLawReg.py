@@ -8,8 +8,8 @@ from matplotlib import pyplot as plt
 from scipy import optimize
 from math import pow
 import numpy as np
-import utility
-import measures
+from common import utility
+from common import measures
 import time
 from config import *
 
@@ -53,7 +53,7 @@ def cluster(nodes, reg=True, params=None, graph=False, completeNetwork=True, bou
     print(avgCluster)
     print(str(t1-t0))
     covariance = None
-    freqx, freqy, clustery = measures.getClusterFreqData(nodes,clusterDict)
+    freqx, freqy, clustery = measures.getClusterFreqData(nodes, clusterDict)
     if reg:
         params, covariance = negExpRegParam(freqx,clustery)
     if graph:

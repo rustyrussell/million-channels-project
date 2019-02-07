@@ -5,8 +5,8 @@ Builds the network with a backtracking algorithm and network measures defined in
 """
 
 import random
-from networkClasses import  *
-import utility
+from common.networkClasses import *
+from common import utility
 import powerLawReg
 #import graph
 import pickle
@@ -252,7 +252,7 @@ def checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestCha
     nodes = network.fullConnNodes + network.partConnNodes
 
     if bestChangesAnalysis == []:
-        numSample = utility.constructSample(betweennessSampleSize, (0, len(nodes)-1))
+        numSample = utility.constructSample(betweennessSampleSize, (0, len(nodes) - 1))
         igraph = network.igraph
         bs = igraph.betweenness(numSample)
         avgB = sum(bs)/betweennessSampleSize
@@ -290,7 +290,7 @@ def nodeDistribution(network, finalNumChannels):
     totalChannels = 0
     pMax = powerLawReg.powerLawFuncC([1], a, b, c)[0]
     r = random.uniform(0, pMax)
-    x = powerLawReg.inversePowLawFuncC([r],a,b,c)[0]
+    x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
     channelsForNode = round(x, 0)
     while channelsForNode > powerLawReg.maxChannelsPerNode:
         x = powerLawReg.inversePowLawFuncC([r], a, b, c)

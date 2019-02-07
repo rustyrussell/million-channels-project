@@ -7,8 +7,8 @@ TODO: MANY OF THESE FEILDS SHOULD EVENTUALLY BE CONFIGURABLE ON STARTUP
 networkName = ""  # ex "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
 finalNumChannels = 1000
 randSeed = 1
-channelFileName = "data/channels_1-18-18.json"
-networkSaveFile = "data/" + networkName
+channelFileName = "../data/channels_1-18-18.json"
+networkSaveFile = "../data/" + networkName
 backtracksPerCheckpoint = 1
 candidateNumber = 3
 channelsPerRound = 5

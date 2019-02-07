@@ -1,7 +1,7 @@
 """
 Contains measures for the network creation backtracking algo defined in build_network.py
 """
-import utility
+from common import utility
 import numpy as np
 
 """

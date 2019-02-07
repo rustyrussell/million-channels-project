@@ -2,9 +2,8 @@
 Generates lightning gossip
 """
 
-
-import wif
-import utility
+from common import wif
+from common import utility
 import buildNetwork
 import pickle
 import os

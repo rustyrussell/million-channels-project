@@ -1,7 +1,7 @@
 import bisect
 import powerLawReg
 from igraph import Graph
-import utility
+from common import utility
 
 #classes
 
