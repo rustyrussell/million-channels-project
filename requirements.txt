@@ -4,3 +4,4 @@ pylightning
 sortedcontainers
 matplotlib
 scipy
+python-igraph

@@ -52,9 +52,9 @@ def connect(filename, jType):
 
     elif jType.is1MLType():
         nodeList = scrapeNodesFromJson1ML(fp)
+    os.chdir("/home/jnetti/lightning/c-lightning/cli/")
     for node in nodeList:
         try:
-            os.chdir("$HOME/lightning/c-lightning/cli")
             subprocess.run(["./lightning-cli", "connect", node])
         except:  # TODO: horrible except statement because I don't know how to except specifically timeouts on the lightning-cli side
             pass

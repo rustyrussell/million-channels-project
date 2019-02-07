@@ -96,6 +96,24 @@ def channelMaxSortKey(node):
     return node.maxChannels
 
 
+def sortByChannelCount(node):
+    return node.channelCount
+
+
+def sortByNodeId(node):
+    return node.nodeid
+
+
+
+def constructSample(sampleSize, bounds):
+    sample = []
+    for i in range(0, sampleSize):
+        r = random.randint(bounds[0], bounds[1])   #note: range is inclusive
+        if r not in sample:
+            sample += [r]
+    return sample
+
+
 def duplicateIncompleteNetwork(network):
     return networkClasses.IncompleteNetwork(fullConnNodes=copy.deepcopy(network.fullConnNodes),
                                             disconnNodes=copy.deepcopy(network.disconnNodes),

@@ -1,5 +1,7 @@
 import bisect
 import powerLawReg
+from igraph import Graph
+import utility
 
 #classes
 
@@ -86,6 +88,20 @@ class Node:
     def isFull(self):
         return self.channelCount >= self.maxChannels
 
+    def setDataDir(self, dataDir):
+        self.dataDir = dataDir
+
+    def setpid(self):
+        fp = open(self.dataDir + "lightningd-regtest.pid", "r")
+        pid = ""
+        for line in fp:
+            pid = line
+            break
+        self.pid = pid
+
+    def setIP(self, ip):
+        self.ip = ip
+
     def __lt__(self, otherNode):
         return self.nodeid < otherNode.nodeid
 
@@ -94,6 +110,7 @@ class Node:
 
     def __eq__(self, otherNode):
         return self.nodeid == otherNode.nodeid
+
 
 
 class Channel:
@@ -128,8 +145,6 @@ class Channel:
 
 
 
-
-
 class Network:
     """
     Network class contains nodes and analysis on the network.
@@ -137,6 +152,8 @@ class Network:
     def __init__(self, fullConnNodes, analysis):
         self.fullConnNodes = fullConnNodes
         self.channels = []
+        self.igraph = self.makeiGraph(fullConnNodes)
+        self.nodeNumber = len(fullConnNodes)
         if analysis == True:
             self.analysis = Analysis(self)
         elif analysis == False:
@@ -147,19 +164,40 @@ class Network:
     def addChannels(self,channels):
         self.channels += channels
 
+    def makeiGraph(self, nodes):
+        nodes.sort(key=utility.sortByNodeId)
+        g = Graph()
+        g.add_vertices(len(nodes))
+        # for c in self.channels:
+        #     g.add_edge(c.node1.nodeid, c.node2.nodeid)
+        return g
+    def setBaseDataDir(self, dir):
+        self.baseDataDir = dir
+
 
 class IncompleteNetwork(Network):     # inherits Network class
-    def __init__(self, fullConnNodes, disconnNodes, partConnNodes=None, unfullNodes=None):
+    def __init__(self, fullConnNodes, disconnNodes, partConnNodes=None, unfullNodes=None, igraph=None):
         Network.__init__(self, fullConnNodes, False)
         self.disconnNodes = disconnNodes
         self.unfullNodes = disconnNodes
         if partConnNodes == None:
             self.partConnNodes = []
+            self.nodeNumber = len(fullConnNodes) + len(disconnNodes)
         else:
             self.partConnNodes = partConnNodes
             self.unfullNodes = self.unfullNodes + partConnNodes
+            self.nodeNumber = len(fullConnNodes) + len(disconnNodes) + len(partConnNodes)
         if unfullNodes != None:
             self.unfullNodes = unfullNodes
+
+        if igraph != None:
+            self.igraph = igraph
+        else:
+            if partConnNodes != None:
+                self.igraph = self.makeiGraph(fullConnNodes + disconnNodes + partConnNodes)
+            else:
+                self.igraph = self.makeiGraph(fullConnNodes + disconnNodes)
+
     def createNewChannel(self, node1, node2):
         """
         creates channel between node1 and node2. NOTE: this does not check if adding this channel breaks the maximum
@@ -200,6 +238,7 @@ class IncompleteNetwork(Network):     # inherits Network class
         channel = Channel(node1, node2)
         node1.addChannel(channel)
         node2.addChannel(channel)
+        self.igraph.add_edge(node1.nodeid, node2.nodeid)
 
         return channel
 
@@ -238,6 +277,7 @@ class IncompleteNetwork(Network):     # inherits Network class
             self.disconnNodes += [node2]
         node1.removeChannel(channel)
         node2.removeChannel(channel)
+        self.igraph.delete_edges([(node1.nodeid, node2.nodeid)])
 
 
     def pushUnfull(self, node):
@@ -247,6 +287,8 @@ class IncompleteNetwork(Network):     # inherits Network class
         n = self.unfullNodes[-1]
         self.unfullNodes = self.unfullNodes[0:-1]
         return n
+
+
 
 
 class Analysis:

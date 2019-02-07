@@ -19,7 +19,7 @@ def graph_tool(network, filename):
         node2 = channel.node2
         es += [g.add_edge(vDict[node1.nodeid], vDict[node2.nodeid])]
 
-    graph_draw(g, vertex_text=g.vertex_index, output=filename + ".png", output_size=(2000,2000))
+    graph_draw(g, vertex_text=g.vertex_index, output=filename + ".png", output_size=(8000, 8000))
 
 
 

@@ -8,26 +8,13 @@ import random
 from networkClasses import  *
 import utility
 import powerLawReg
-import copy
 #import graph
-import measures
+import pickle
+import time
+from config import *
 
 
-##################### Current network measures to aim for. #####################
-# When the program is done we will link the programs together, so we won't have these harded-coded constants about a specific snapshot of the network.
-gini = 0.7362258902760351     # from gini_power_experiment
-##################### Current network measures to aim for. #####################
 
-#fields
-noiseProb = .2    #on average, 1 out of every 5 nodes should be random
-randGenNoiseTrials = 10  # the first 10 nodes will use randint the rest will be swapped at an interval of 1 out of every 10
-finalNumChannels = 1000 #1000000    # right now it is constant at 1,000,000. #TODO make this variable when the program gets more advanced
-randSeed = 90                  #TODO make this variable when the program gets more advanced
-channelFileName = "data/channels_1-18-18.json"
-backtracksPerCheckpoint = 1
-candidateNumber = 1
-channelsPerRound = 10
-attempts = candidateNumber**channelsPerRound
 
 #functions
 
@@ -39,12 +26,14 @@ def main():
     utility.setRandSeed(randSeed)
     newNodes = nodeDistribution(targetNetwork, finalNumChannels)   # eventually a config command can turn on and off the rand dist
     incompleteNetwork = IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
+    t1 = time.time()
     newNetwork = buildNetwork(targetNetwork, incompleteNetwork)
-
+    t2 = time.time()
+    print("time: " + str(t2-t1))
     print(len(newNetwork.channels))
-    #graph.graph_tool(newNetwork, str(finalNumChannels) + "cluster1_seed2")
-    return newNetwork
-
+    #graph.graph_tool(newNetwork, str(finalNumChannels) + "backtracking_with_betweenness_allcandrandom_seed1_30sample_3cand"
+    f = open(networkSaveFile, "wb")
+    pickle.dump(newNetwork, f)
 
 
 def buildNetwork(targetNetwork, incompleteNetwork):
@@ -76,28 +65,25 @@ def buildNetwork(targetNetwork, incompleteNetwork):
     j = 0
     while len(bestNetwork.unfullNodes) > 1:    #implicitly (totalChannels + channelsPerRound) <= finalNumChannels
         currNetwork = bestNetwork
-        for t in range(0, backtracksPerCheckpoint):
-            if j == 3:
-                print("3")
-            j += 1
-            stateChanges = roundRec(currNetwork, targetNetwork, [], [], channelGenParams, 0, 0)
-            applyStateChanges(currNetwork, stateChanges)
-            currNetwork.addChannels(stateChanges)
-            if len(currNetwork.unfullNodes) < channelsPerRound:
-                shift = len(currNetwork.unfullNodes)
-            else:
-                shift = channelsPerRound
-            for i in range(0, shift):
-                currNetwork.pushUnfull(currNetwork.popUnfull())
-            #channelGenParams, bestNetwork = checkpointFunction(currNetwork, bestNetwork, targetNetwork, channelGenParams)
-            print("done with round")
-
+        # for t in range(0, backtracksPerCheckpoint):
+        params, stateChanges, changeAnalysis = roundRec(currNetwork, targetNetwork, [], [], [], channelGenParams, 0, 0)
+        applyStateChanges(currNetwork, stateChanges)
+        currNetwork.addChannels(stateChanges)
+        if len(currNetwork.unfullNodes) < channelsPerRound:
+            shift = len(currNetwork.unfullNodes)
+        else:
+            shift = channelsPerRound
+        for i in range(0, shift):
+            currNetwork.pushUnfull(currNetwork.popUnfull())
+        #channelGenParams, bestNetwork = checkpointFunction(currNetwork, bestNetwork, targetNetwork, channelGenParams)
+        # print(j)
+        j += 1
 
     return bestNetwork
 
 
 
-def roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams, i, t):
+def roundRec(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, channelGenParams, i, t):
     """
     Backtracks though every permutation (channelsPerRound^candidateNumber permutations)
     :param nodes:
@@ -110,8 +96,8 @@ def roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams,
     nodes = network.unfullNodes
 
     if i == channelsPerRound or len(nodes) <= 1:  # if rounds complete or no more unfull nodes
-        params, bestChanges = checkpointFunction(network, targetNetwork, currChanges, bestChanges, channelGenParams)
-        return bestChanges
+        channelGenParams, bestChanges, bestChangesAnalysis = checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, channelGenParams)
+        return channelGenParams, bestChanges, bestChangesAnalysis
 
     currNode = network.popUnfull()    #pop from queue
     network.pushUnfull(currNode)
@@ -121,12 +107,12 @@ def roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams,
         other = candidates[c]
         channel = network.createNewChannel(currNode, other)
         currChanges += [channel]
-        bestChanges = roundRec(network, targetNetwork, currChanges, bestChanges, channelGenParams, i+1, t)
+        channelGenParams, bestChanges, bestChangesAnalysis = roundRec(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, channelGenParams, i+1, t)
         network.removeChannel(channel) # reverse previous channel add
         network.unfullNodes = nodes # revert to old unfill queue
         currChanges = currChanges[0:-1] # revert to old changes
 
-    return bestChanges
+    return channelGenParams, bestChanges, bestChangesAnalysis
 
 
 def applyStateChanges(network, channels):
@@ -153,81 +139,79 @@ def generateCandidates(network, node, channelGenParams):
     """
     candidateList = []
 
-    if node.maxChannels > 1:
-        sampleSize = 5
-        # maxChannels = node.maxChannels
-        # analysis = channelGenParams.targetNetwork.analysis
-        # myCluster = measures.calcNodeCluster(node)
-        # targetCluster = analysis.cluster
-        # clusterParams = targetCluster[3]
-        # targetClusterY = powerLawReg.negExpFunc(maxChannels, clusterParams[0], clusterParams[1], clusterParams[2])
-
-        ns = node.neighbors
-        #collecting neighbors of neighbors that are not neighbors or oneself or full
-        nns = []
-        for n in ns:
-            s = n.neighbors
-            for nn in s:
-                if nn not in ns and nn != node and not nn.isFull():
-                    nns += [nn]
-
-        if len(nns) == 0:
-            candidateList += [genRandomCand(network, node)]
-        else:
-            # if myCluster <= targetCluster:
-
-            sample = []
-            for i in range(0, sampleSize):
-                if i+1 > len(nns):
-                    break
-                r = random.randint(0, len(nns)-1)
-                if r not in sample:
-                    sample += [r]
-
-
-            #find nn that has highest (nnn that are in ns)/(total nnn)
-            interconnList = []
-            largest = 0
-            largestNN = None
-            for i in range(0, len(sample)):
-                nn = nns[sample[i]]
-                nnns = nn.neighbors
-                if len(nnns) == 0:
-                    continue
-                elif nn.maxChannels == 1:
-                    continue
-                else:
-                    s = 0
-                    for nnn in nnns:
-                        if nnn in ns:
-                            s += 1
-                    s = s / len(nnns)
-                    interconnList += [(nn, s)]
-                    if largest < s:
-                        largestNN = nn
-                        largest = s
-
-            if largestNN is None:
-                candidateList += [genRandomCand(network, node)]
-            else:
-                candidateList += [largestNN]
-
-
-
-
-
-
-            # if myCluster <= targetCluster:
-            #     #gather neighbors of neighbors that you are not connected to
-            #     #choose highest (this is greedy)
-            #     pass
-            # elif myCluster > targetCluster:
-            #     pass
-
-    else:
-        candidateList += [genRandomCand(network, node)]
-
+    # this clustering bit is too slow!
+    # if node.maxChannels > 1:
+    #     sampleSize = 5
+    #     # maxChannels = node.maxChannels
+    #     # analysis = channelGenParams.targetNetwork.analysis
+    #     # myCluster = measures.calcNodeCluster(node)
+    #     # targetCluster = analysis.cluster
+    #     # clusterParams = targetCluster[3]
+    #     # targetClusterY = powerLawReg.negExpFunc(maxChannels, clusterParams[0], clusterParams[1], clusterParams[2])
+    #
+    #     ns = node.neighbors
+    #     #collecting neighbors of neighbors that are not neighbors or oneself or full
+    #     nns = []
+    #     for n in ns:
+    #         s = n.neighbors
+    #         for nn in s:
+    #             if nn not in ns and nn != node and not nn.isFull():
+    #                 nns += [nn]
+    #
+    #     if len(nns) == 0:
+    #         candidateList += [genRandomCand(network, node)]
+    #     else:
+    #         # if myCluster <= targetCluster:
+    #
+    #         sample = []
+    #         for i in range(0, sampleSize):
+    #             if i+1 > len(nns):
+    #                 break
+    #             r = random.randint(0, len(nns)-1)
+    #             if r not in sample:
+    #                 sample += [r]
+    #
+    #
+    #         #find nn that has highest (nnn that are in ns)/(total nnn)
+    #         interconnList = []
+    #         largest = 0
+    #         largestNN = None
+    #         for i in range(0, len(sample)):
+    #             nn = nns[sample[i]]
+    #             nnns = nn.neighbors
+    #             if len(nnns) == 0:
+    #                 continue
+    #             elif nn.maxChannels == 1:
+    #                 continue
+    #             else:
+    #                 s = 0
+    #                 for nnn in nnns:
+    #                     if nnn in ns:
+    #                         s += 1
+    #                 s = s / len(nnns)
+    #                 interconnList += [(nn, s)]
+    #                 if largest < s:
+    #                     largestNN = nn
+    #                     largest = s
+    #
+    #         if largestNN is None:
+    #             candidateList += [genRandomCand(network, node)]
+    #         else:
+    #             candidateList += [largestNN]
+    #
+    #         # if myCluster <= targetCluster:
+    #         #     #gather neighbors of neighbors that you are not connected to
+    #         #     #choose highest (this is greedy)
+    #         #     pass
+    #         # elif myCluster > targetCluster:
+    #         #     pass
+    #
+    # else:
+    #     candidateList += [genRandomCand(network, node)]
     candidateList += [genRandomCand(network, node)]
+    candidateList += [genRandomCand(network, node)]
+    candidateList += [genRandomCand(network, node)]
+
 
     return candidateList[0:candidateNumber]
 
@@ -246,7 +230,8 @@ def genRandomCand(network, node):
         randNode = nodesToSelectFrom[r1]
     return randNode
 
-def checkpointFunction(network, targetNetwork, currChanges, bestChanges, channelGenParams):
+
+def checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, channelGenParams):
     """
     Checkpoint function judges the network by:
     1. making sure ALL nodes with channels are connected
@@ -263,7 +248,30 @@ def checkpointFunction(network, targetNetwork, currChanges, bestChanges, channel
     :return:
     """
 
-    return channelGenParams, copy.copy(currChanges) #copy.deepcopy(incompleteNetwork) #TODO change
+    betweennessSampleSize = 30
+    nodes = network.fullConnNodes + network.partConnNodes
+
+    if bestChangesAnalysis == []:
+        numSample = utility.constructSample(betweennessSampleSize, (0, len(nodes)-1))
+        igraph = network.igraph
+        bs = igraph.betweenness(numSample)
+        avgB = sum(bs)/betweennessSampleSize
+        bestChanges = currChanges
+        bestChangesAnalysis = [numSample, avgB]
+    else:
+        numSample = bestChangesAnalysis[0]
+        avgB = bestChangesAnalysis[1]
+
+        igraph = network.igraph
+        newbs = igraph.betweenness(numSample)
+        newAvgB = sum(newbs) / betweennessSampleSize
+
+        if newAvgB < avgB:
+            bestChanges = currChanges
+            bestChangesAnalysis = [numSample, newAvgB]
+
+
+    return channelGenParams, bestChanges.copy(), bestChangesAnalysis  #TODO do I need .copy() ?
 
 
 def nodeDistribution(network, finalNumChannels):
@@ -327,13 +335,5 @@ def newNodeId(i):        # todo when we starting adding tx to the blockchain
 
 
 
-
-
-
-
-
-
-
-
-
-main()
+if __name__ == "__main__":
+    main()

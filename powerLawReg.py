@@ -11,11 +11,7 @@ import numpy as np
 import utility
 import measures
 import time
-
-#fields
-
-channelFileName = "data/channels_1-18-18.json"
-maxChannelsPerNode = 100000
+from config import *
 
 
 #functions
