@@ -11,6 +11,7 @@ import pickle
 import os
 import subprocess
 from config import *
+import signal
 
 
 def main():
@@ -18,16 +19,18 @@ def main():
     network.setBaseDataDir(baseDataDir + currExperimentDir)
     channelSeq = genChanCreateSeq(network)
 
-    # testNode1 = channelSeq[0].node1
-    # print("nodeid: " + str(testNode1.nodeid))
-    # startNewLightningNode(network, testNode1)
-    # print("ip: " + testNode1.ip)
-    # print("pid: " + str(testNode1.pid))
-    # testNode2 = channelSeq[0].node2
-    # print("nodeid: " + str(testNode2.nodeid))
-    # startNewLightningNode(network, testNode2)
-    # print("ip: " + testNode2.ip)
-    # print("pid: " + str(testNode2.pid))
+    testNode1 = channelSeq[0].node1
+    print("nodeid: " + str(testNode1.nodeid))
+    startNewLightningNode(network, testNode1)
+    print("ip: " + testNode1.ip)
+    print("pid: " + str(testNode1.pid))
+    killLightningNode(testNode1)
+    testNode2 = channelSeq[0].node2
+    print("nodeid: " + str(testNode2.nodeid))
+    startNewLightningNode(network, testNode2)
+    print("ip: " + testNode2.ip)
+    print("pid: " + str(testNode2.pid))
+    killLightningNode(testNode2)
 
 
     print(channelSeq)
@@ -122,9 +125,6 @@ def getLoopbackIPAddr(nodeid):
 
 
 
-
-
-
 def checkRPCConnection(rpcLocation):
     """
     checks if a node is up by calling its rpc interface and checking the output
@@ -146,9 +146,8 @@ def createLightningNewDataDir(dir):
     return exists
 
 
-
-def killLightningNode():
-    pass
+def killLightningNode(node):
+    os.kill(int(node.pid), signal.SIGTERM)
 
 
 
