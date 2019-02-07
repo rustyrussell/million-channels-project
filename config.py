@@ -26,10 +26,14 @@ maxChannelsPerNode = 100000
 baseDataDir = ""      # ex "/home/jnetti/.lightning/"
 experimentName = ""   # ex "experTwo" , "7" , etc
 currExperimentDir = "experiments/"
-lightningdDir =  ""             # ex "/home/jnetti/lightning/c-lightning/lightningd/"
+lightningDir =  ""             # ex "/home/jnetti/lightning/c-lightning/"
 bitcoinSrcDir =  ""             # ex "/home/jnetti/bitcoin/bitcoin/src/"
 #cannot be changed by user:
+lightningdDir = lightningDir + "lightningd/"
+lightningCliDir = lightningDir + "cli/"
 bitcoinCliPath = bitcoinSrcDir + "bitcoin-cli"
+
+
 
 
 def checkBuildNetworkFields():
@@ -45,8 +49,8 @@ def checkGossipFields():
     elif experimentName == "":
         print("Fill experimentName in config.py with the specific experiment name")
         return False
-    elif lightningdDir == "":
-        print("Fill lightningdDir in config.py with the path to lightningd directory of c-lightning implementation. Example: /home/myUser/c-lightning/lightningd/")
+    elif lightningDir == "":
+        print("Fill lightningdDir in config.py with the path to c-lightning directory. Example: /home/myUser/c-lightning/")
         return False
     elif bitcoinSrcDir == "":
         print("Fill bitcoinSrcDir in config.py with the path to bitcoin src directory of a bitcoin core implementation. Example: /home/myUser/bitcoin/src/")
@@ -54,4 +58,10 @@ def checkGossipFields():
     return True
 
 def checkPowerLawFields():
+    return True
+
+def checkScrapeConnectedNodesFields():
+    if lightningDir == "":
+        print("Fill lightningdDir in config.py with the path to c-lightning directory. Example: /home/myUser/c-lightning/")
+        return False
     return True

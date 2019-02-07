@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+from config import *
 
 #classes
 
@@ -52,7 +53,7 @@ def connect(filename, jType):
 
     elif jType.is1MLType():
         nodeList = scrapeNodesFromJson1ML(fp)
-    os.chdir("/home/jnetti/lightning/c-lightning/cli/")
+    os.chdir(lightningCliDir)
     for node in nodeList:
         try:
             subprocess.run(["./lightning-cli", "connect", node])
@@ -94,4 +95,8 @@ def scrapeNodesFromJsonCLightning(fp):
     return nodeList 
 
 
-main()
+assert(checkScrapeConnectedNodesFields() == True)
+if __name__ == "__main__":
+    main()
+
+
