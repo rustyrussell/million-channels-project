@@ -46,7 +46,7 @@ def connect(filename, jType):
     tries to connect to the nodes that are in the json format of the output of the c-lightning cli listnodes command
     :return: None
     """
-    fp = open("data/" + filename)
+    fp = open("../data/" + filename)
     nodeList = []
     if jType.isCLightningType():
         nodeList = scrapeNodesFromJsonCLightning(fp)
@@ -56,7 +56,7 @@ def connect(filename, jType):
     os.chdir(lightningCliDir)
     for node in nodeList:
         try:
-            subprocess.run(["./lightning-cli", "connect", node])
+            subprocess.run(["./lightning-cli", "--lightning-dir="+lightningExpDir, "connect", node])
         except:  # TODO: horrible except statement because I don't know how to except specifically timeouts on the lightning-cli side
             pass
 

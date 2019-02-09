@@ -16,6 +16,8 @@ class Node:
             self.channelCount = 0
             self.neighbors = []
             self.neighborsDict = dict()
+            self.realChannelCount = 0
+            self.addrList = []
         else:
             self.channels = channels
             self.neighbors = []
@@ -79,8 +81,24 @@ class Node:
                 else:
                     self.neighborsDict[p1.nodeid] -= 1
 
+    def turnOn(self):
+        self.on = True
 
+    def turnOff(self):
+        self.on = False
+        self.realChannelCount = 0
 
+    def addToRealChannelCount(self):
+        self.realChannelCount += 1
+
+    def setRPC(self, rpc):
+        self.rpc = rpc
+
+    def setId(self, id):
+        self.id = id
+
+    def addToAddrList(self, addr):
+        self.addrList += [addr]
 
     def inNetwork(self):
         return len(self.channels) > 0
@@ -145,6 +163,8 @@ class Channel:
 
 
 
+
+
 class Network:
     """
     Network class contains nodes and analysis on the network.
@@ -173,6 +193,16 @@ class Network:
         return g
     def setBaseDataDir(self, dir):
         self.baseDataDir = dir
+
+    def turnOn(self):
+        self.on = True
+
+    def turnOff(self):
+        self.on = False
+
+    def setWatcher(self, watcherId, watcherRPC):
+        self.watcherId = watcherId
+        self.watcherRPC = watcherRPC
 
 
 class IncompleteNetwork(Network):     # inherits Network class

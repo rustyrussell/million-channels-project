@@ -28,12 +28,15 @@ experimentName = ""   # ex "experTwo" , "7" , etc
 currExperimentDir = "experiments/"
 lightningDir =  ""             # ex "/home/jnetti/lightning/c-lightning/"
 bitcoinSrcDir =  ""             # ex "/home/jnetti/bitcoin/bitcoin/src/"
+bitcoinBaseDataDir = ""         # ex "/home/jnetti/.bitcoin/"
+bitcoinRegDataDir = bitcoinBaseDataDir + "regtest/"
+regtestConfPath = bitcoinBaseDataDir + "regtest.conf"
 #cannot be changed by user:
+defaultLightningPort = 9735
 lightningdDir = lightningDir + "lightningd/"
 lightningCliDir = lightningDir + "cli/"
-bitcoinCliPath = bitcoinSrcDir + "bitcoin-cli"
-
-
+defaultContractFunding = 10000  # satoshis
+defaultFeerate = 'normal'     # or perkw
 
 
 def checkBuildNetworkFields():
@@ -55,6 +58,9 @@ def checkGossipFields():
     elif bitcoinSrcDir == "":
         print("Fill bitcoinSrcDir in config.py with the path to bitcoin src directory of a bitcoin core implementation. Example: /home/myUser/bitcoin/src/")
         return False
+    elif bitcoinBaseDataDir == "":
+        print("Fill bitcoinBaseDataDir in config.py. This is usually /home/<user>/.bitcoin")
+        return  False
     return True
 
 def checkPowerLawFields():

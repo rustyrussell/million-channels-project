@@ -10,28 +10,181 @@ import os
 import subprocess
 from config import *
 import signal
-
+from lightning import LightningRpc
+from bitcoin.rpc import Proxy
+from bitcoin import SelectParams
+import time
+import threading
 
 def main():
     network = loadNetwork(buildNetwork.networkSaveFile)
-    network.setBaseDataDir(baseDataDir + currExperimentDir)
+    network.setBaseDataDir(lightingExpBaseDir)
+    SelectParams("regtest")
+    brpc = Proxy(btc_conf_file=regtestConfPath)
+    genAddr = brpc.getnewaddress()
+    genAddr = str(genAddr)
+    #fundBitcoind(brpc, genAddr, 1000)  # creates 100 blocks
     channelSeq = genChanCreateSeq(network)
+    # #delete
+    # nodes = []
+    # j = 0
+    # for c in channelSeq:
+    #     if j == 5: break
+    #     else: j+=1
+    #     node1 = c.node1
+    #     node2 = c.node2
+    #     if node1 not in nodes: nodes += [node1]
+    #     if node2 not in nodes: nodes += [node2]
+    # channelSeq = channelSeq[0:5]
+    # #delete
+    watcherpid = startWatcherNode(network)
 
-    testNode1 = channelSeq[0].node1
-    print("nodeid: " + str(testNode1.nodeid))
-    startNewLightningNode(network, testNode1)
-    print("ip: " + testNode1.ip)
-    print("pid: " + str(testNode1.pid))
-    killLightningNode(testNode1)
-    testNode2 = channelSeq[0].node2
-    print("nodeid: " + str(testNode2.nodeid))
-    startNewLightningNode(network, testNode2)
-    print("ip: " + testNode2.ip)
-    print("pid: " + str(testNode2.pid))
-    killLightningNode(testNode2)
+    try:
+        createAllNodes(network, nodes=None)
+        fundAllLightningAddrs(network, brpc, genAddr, nodes=None)
+        brpc.call("generatetoaddress", 6, genAddr)  # 6 confirmations
+        genAllChannels(network, channelSeq, brpc, genAddr)
+
+        watcherRPC = network.watcherRPC
+        ch = watcherRPC.listchannels()
+        ns = watcherRPC.listnodes()
+        print("all watched channels: ")
+        print(ch)
+        print("all watched nodes: ")
+        print(ns)
+
+        nodes = network.fullConnNodes + network.partConnNodes
+        for node in nodes:
+            killLightningNode(node)
 
 
-    print(channelSeq)
+        os.kill(int(watcherpid), signal.SIGTERM)    #kill watcher
+
+    # except:  #kill all nodes
+    finally:
+        nodes = network.fullConnNodes + network.partConnNodes
+        for node in nodes:
+            killLightningNode(node)
+
+        os.kill(int(watcherpid), signal.SIGTERM)  # kill watcher
+
+
+
+def createAllNodes(network, nodes=None):
+    """
+    we turn nodes on and off so that the address can be generated. This way coins can be allocated to those addresses on regtest chain
+    :param network:
+    :param nodes:
+    :return:
+    """
+    threads = []
+    if nodes == None:
+        nodes = network.fullConnNodes + network.partConnNodes
+    for node in nodes:
+        exists = os.path.exists(network.baseDataDir + str(node.nodeid) + "/")
+        if exists:
+            thread = threading.Thread(target=startNewLightningNode, args=(network, node, False))
+        else:
+            thread = threading.Thread(target=startNewLightningNode, args=(network, node, True))
+        threads += [thread]
+
+    for t in threads:
+        t.start()
+
+    #thread loop for killing all. Do this after multithreading fundAllLightningAddr and genAllChannels
+    # killLightningNode(node)
+
+
+    for t in threads:
+        t.join()
+
+
+def fundAllLightningAddrs(network, brpc, genAddr, nodes=None):
+    """
+    send money to lightning addresses and create blocks
+    :param network:
+    :param brpc:
+    :return:
+    """
+    if nodes == None:
+        nodes = network.fullConnNodes + network.partConnNodes
+    j = 0
+    for node in nodes:
+        if j == 2000:               #TODO: this is very unsophisticated. We put 2000 tx in each block.
+            brpc.call("generatetoaddress", 1, genAddr)
+            j = 0
+        else:
+            j += 1
+        addr = node.addrList[0]   #just take first address. There has to be an address because of startNewLightningNode
+        c = node.channelCount
+        fee = 100    # satoshis
+        amount = c*100000 + c*fee
+        while True:
+            try:
+                brpc.sendtoaddress(addr, amount)
+                break
+            except BrokenPipeError:
+                pass
+    if len(brpc.getrawmempool(verbose=True)) > 0:   # if mempool not empty
+        brpc.call("generatetoaddress", 1, genAddr)
+
+
+def genAllChannels(network, channels, brpc, genAddr):
+    """
+    Generates all channels
+    :param network:
+    :param channels:
+    :return:
+    """
+
+    t = 0
+    for channel in channels:
+        # if t == 5:
+        #     brpc.call("generatetoaddress", 1, genAddr)
+        #     t = 0
+        # else:
+        #     t += 1
+        node1 = channel.node1
+        node2 = channel.node2
+        if node1.on == False:
+            startNewLightningNode(network, node1, new=False)
+        if node2.on == False:
+            startNewLightningNode(network, node2, new=False)
+        createChannel(node1, node2)
+        if node1.realChannelCount == node1.channelCount:
+            killLightningNode(node1)
+        if node2.realChannelCount == node2.channelCount:
+            killLightningNode(node2)
+        brpc.call("generatetoaddress", 1, genAddr)   # gen every time for now. There may be an error where outputs are spent and we are trying to create a new channel
+
+
+def createChannel(node1, node2):
+    """
+    Create single channel
+    :param node1: node1
+    :param node2: node2
+    :return:
+    """
+    rpcNode1 = node1.rpc
+    rpcNode2 = node2.rpc
+    rpcNode1.connect(node2.id, node2.ip, defaultLightningPort)
+    print(node1.ip, node2.ip)
+    funds1 = rpcNode1.listfunds()
+    funds2 = rpcNode2.listfunds()
+    t1 = time.time()
+    while len(funds1["outputs"]) == 0 or len(funds2["outputs"]) == 0:
+        time.sleep(.25)
+        funds1 = rpcNode1.listfunds()
+        funds2 = rpcNode2.listfunds()
+    t2 = time.time()
+    print(funds1)
+    print(funds2)
+    print("time:", str(t2-t1))
+    rpcNode1.fundchannel(node2.id, defaultContractFunding, defaultFeerate, True)
+    print("channel successful")
+    print()
+    node1.addToRealChannelCount()
+    node2.addToRealChannelCount()
 
 
 def loadNetwork(networkFilename):
@@ -77,7 +230,30 @@ def genChanCreateSeq(network):
 
 
 
-def startNewLightningNode(network, node):
+def startWatcherNode(network):
+    """
+    the watcher node is connected to all nodes and is 127.0.0.1
+    :param network: network
+    :return:
+    """
+    os.chdir(lightningdDir)
+    watcherDir = network.baseDataDir + "watcher/"
+    createLightningNewDataDir(watcherDir)
+    subprocess.run(["./lightningd", "--bitcoin-cli", bitcoinCliPath, "--daemon", "--network=regtest", "--lightning-dir=" + watcherDir, "--addr", "127.0.0.1"])
+    rpcPath = watcherDir + "lightning-rpc"
+    lrpc = LightningRpc(rpcPath)
+    info = lrpc.getinfo()
+    network.setWatcher(info["id"], lrpc)
+    fp = open(watcherDir + "lightningd-regtest.pid", "r")
+    pid = ""
+    for line in fp:
+        pid = line
+        break
+    return pid
+
+
+
+def startNewLightningNode(network, node, new=False):
     """
     when a new lightning node starts we must:
     create a new data directory,
@@ -86,20 +262,25 @@ def startNewLightningNode(network, node):
     and save pid of process for killing later on
     :return: bool is successfully started
     """
-    nodeid = node.nodeid
+    nodeid = node.nodeid + 2
     nodeDataDir = network.baseDataDir + str(nodeid) + "/"    # creates new data dir
-    print(nodeDataDir)
     createLightningNewDataDir(nodeDataDir)
     node.setDataDir(nodeDataDir)
     os.chdir(lightningdDir)
-    print(lightningdDir)
     ip = getLoopbackIPAddr(nodeid)
-    node.setIP(ip)
-    subprocess.run(["./lightningd", "--bitcoin-cli", bitcoinCliPath, "--daemon", "--network=regtest", "--lightning-dir="+nodeDataDir, "--addr", ip])
-    node.setpid()
+    o = subprocess.run(["./lightningd", "--bitcoin-cli", bitcoinCliPath, "--daemon", "--network=regtest", "--lightning-dir="+nodeDataDir, "--addr", ip], capture_output=True)
     rpcPath = nodeDataDir + "lightning-rpc"
-    checkRPCConnection(rpcPath)   # I don't think this will work because it takes a few seconds before rpc connections work
-
+    lrpc = LightningRpc(rpcPath)
+    lrpc.connect(network.watcherId, host="127.0.0.1", port=9735)    # connect to watcher
+    node.setRPC(lrpc)
+    node.on = True
+    node.setpid()
+    if new:
+        node.setIP(ip)
+        info = lrpc.getinfo()
+        node.setId(info["id"])
+        addr = lrpc.newaddr()
+        node.addToAddrList(addr["address"])
 
 
 def getLoopbackIPAddr(nodeid):
@@ -109,7 +290,7 @@ def getLoopbackIPAddr(nodeid):
     :return: ip str
     """
     ip = [0, 0, 1]
-    i = nodeid + 1    # because we must start at 127.0.0.1
+    i = nodeid + 2    # because we must start at 127.0.0.2. Therefore we add 2 because nodeid starts at 1. 127.0.0.1 is reserved for watching node
     j = -1
     while i != 0:
         b = i % 256
@@ -122,19 +303,9 @@ def getLoopbackIPAddr(nodeid):
     return strIP
 
 
-
-def checkRPCConnection(rpcLocation):
-    """
-    checks if a node is up by calling its rpc interface and checking the output
-    :param rpcLocation: path
-    :return: bool
-    """
-    pass
-
-
 def createLightningNewDataDir(dir):
     """
-    creates a new data directory under baseDataDir/currExperimentDir
+    creates a new data directory under baseDataDir/currExperimentDir/experimentName
     :return: bool if directory exists
     """
 
@@ -145,14 +316,21 @@ def createLightningNewDataDir(dir):
 
 
 def killLightningNode(node):
-    os.kill(int(node.pid), signal.SIGTERM)
+    try:
+        os.kill(int(node.pid), signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    node.on = False
 
+
+
+def fundBitcoind(brpc, genAddr, n):
+    brpc.call("generatetoaddress", n, genAddr)
 
 
 assert(checkGossipFields() == True)
 if __name__ == "__main__":
     main()
 
-# testGenPrivKey("0000010000000000000000000000000000000000000000000000000000000001")
 
 

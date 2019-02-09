@@ -5,7 +5,7 @@ Builds the network with a backtracking algorithm and network measures defined in
 """
 
 import random
-from common.networkClasses import *
+from common import networkClasses
 from common import utility
 import powerLawReg
 #import graph
@@ -22,10 +22,10 @@ def main():
     fp = open(powerLawReg.channelFileName)
     jn = utility.loadJson(fp)
     nodes, channels = utility.jsonToObject(jn)
-    targetNetwork = Network(fullConnNodes=nodes, analysis=True)
+    targetNetwork = networkClasses.Network(fullConnNodes=nodes, analysis=True)
     utility.setRandSeed(randSeed)
     newNodes = nodeDistribution(targetNetwork, finalNumChannels)   # eventually a config command can turn on and off the rand dist
-    incompleteNetwork = IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
+    incompleteNetwork = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     t1 = time.time()
     newNetwork = buildNetwork(targetNetwork, incompleteNetwork)
     t2 = time.time()
@@ -59,7 +59,7 @@ def buildNetwork(targetNetwork, incompleteNetwork):
     incompleteNetwork.pushUnfull(node2)
     incompleteNetwork.createNewChannel(node1, node2)
 
-    channelGenParams = ChannelGenParams(targetNetwork, incompleteNetwork)    # empty params
+    channelGenParams = networkClasses.ChannelGenParams(targetNetwork, incompleteNetwork)    # empty params
     bestNetwork = incompleteNetwork
 
     j = 0
@@ -298,7 +298,7 @@ def nodeDistribution(network, finalNumChannels):
     totalChannels += channelsForNode
 
     while totalChannels < finalNumChannels:     # this is why I wish python had do-while statements!!!
-        n = Node(nodeidCounter, maxChannels=channelsForNode)
+        n = networkClasses.Node(nodeidCounter, maxChannels=channelsForNode)
         nodes += [n]
         nodeidCounter += 1
         r = random.uniform(0, pMax)
