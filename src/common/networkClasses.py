@@ -35,6 +35,17 @@ class Node:
         self.nodeid = nodeid
         self.maxChannels = maxChannels
 
+    def setPrivKey(self, priv):
+        self.priv = priv
+
+    def setCPrivKeyObj(self, cPrivObj):
+        self.cPrivObj = cPrivObj
+
+    def setCompPubKey(self, compPub):
+        self.compPub = compPub
+
+
+
     def addChannel(self, channel):
         bisect.insort_left(self.channels, channel)
         self.value += channel.value
