@@ -16,6 +16,7 @@ announcementType = bytearray().fromhex("0100")
 featureLen = bytearray().fromhex("0000")
 features = bytearray()
 scid = bytearray([0, 0, 10, 0, 0, 2, 0, 1])   # for now we are placing it in the 10th block, 2nd transactions, 1st output
+satoshis = 11111
 
 def mvp():
     SelectParams("regtest")
@@ -46,7 +47,6 @@ def mvp():
     bitcoinKey1 = bytearray(bitcoinPub1)
     bitcoinKey2 = bytearray(bitcoinPub2)
 
-
     a = ChannelAnnouncement()
     a.setFeatureLen(featureLen)
     a.setFeatures(features)
@@ -57,6 +57,8 @@ def mvp():
     a.setBitcoinKey2(bitcoinKey2)
 
     h = a.hashPartial()
+    s = sign(node1.cPrivObj, h)
+    print(len(s))
     nodesig1 = bytearray(sign(node1.cPrivObj, h))
     nodesig2 = bytearray(sign(node2.cPrivObj, h))
     bitcoinSig1 = bytearray(sign(cBitcoinPrivObj1, h))
@@ -68,8 +70,10 @@ def mvp():
     a.setBitcoinSig2(bitcoinSig2)
 
     finalA = a.serialize(full=True)
-    print(finalA.hex())
-    print()
+
+    myA = writeToGossip_Store(finalA, "gossip_store")
+    return myA
+
 
 _bchr = chr
 _bord = ord
@@ -80,10 +84,11 @@ if sys.version > '3':
 
 def sign(key, h):
     sig, i = key.sign_compact(h)
-    meta = 27 + i
-    if key.is_compressed:
-        meta += 4
-    return base64.b64encode(_bchr(meta) + sig)
+    # we don't need this because this extra byte if for key recovery
+    # meta = 27 + i
+    # if key.is_compressed:
+    #     meta += 4
+    return sig
 
 def makeAllPrivPubKeys(network):
     nodes = network.fullConnNodes + network.partConnNodes
@@ -151,9 +156,6 @@ class ChannelAnnouncement():
         return h
 
 
-
-
-
 def generateNewSecretKey():
     """
     using default python randomness because secret keys don't have to be secure--this is a test suite.
@@ -168,6 +170,34 @@ def generateNewSecretKey():
     return randbits
 
 
+## gossip store functions
+
+def writeToGossip_Store(a, filename):
+    gossipVersion = bytearray().fromhex("03")
+    msglen = getmsglen(a)
+    bMsglenA = bytearray(msglen.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
+    WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
+    bSatoshis = bytearray(satoshis.to_bytes(8, byteorder="big"))
+    fulllen = len(WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT) + len(bMsglenA) + len(a) + len(bSatoshis) #remember, we don't have checksum and we don't count gossipVersion
+    print(fulllen)
+    bMsglenFull = bytearray(fulllen.to_bytes(4, byteorder="big"))
+    aToWrite = gossipVersion + bMsglenFull  + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA + a + bSatoshis
+    fp = open(filename, "wb")
+    fp.write(aToWrite)
+    print("len of a:", len(a))
+    print(len(aToWrite.hex()))
+    print(aToWrite.hex())
+    return aToWrite
+
+
+def getmsglen(a):
+    return len(a)
+
+
+
+
+
+
 
 def loadNetwork(networkFilename):
     fp = open(networkFilename, "rb")
@@ -176,20 +206,23 @@ def loadNetwork(networkFilename):
 
 
 
-#from tests in c-lightning
-# with open(os.path.join("/home/jnetti/.lightning/experiments/testNodes/1", 'gossip_store'), 'wb') as f:
-#     f.write(bytearray.fromhex("03"  # GOSSIP_VERSION
-#                               "000001bc"  # len
-#                               "521ef598"  # csum
-#                               "1000"  # WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT
-#                               "01b00100bb8d7b6998cca3c2b3ce12a6bd73a8872c808bb48de2a30c5ad9cdf835905d1e27505755087e675fb517bbac6beb227629b694ea68f49d357458327138978ebfd7adfde1c69d0d2f497154256f6d5567a5cf2317c589e0046c0cc2b3e986cf9b6d3b44742bd57bce32d72cd1180a7f657795976130b20508b239976d3d4cdc4d0d6e6fbb9ab6471f664a662972e406f519eab8bce87a8c0365646df5acbc04c91540b4c7c518cec680a4a6af14dae1aca0fd5525220f7f0e96fcd2adef3c803ac9427fe71034b55a50536638820ef21903d09ccddd38396675b598587fa886ca711415c813fc6d69f46552b9a0a539c18f265debd0e2e286980a118ba349c216000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b50001021bf3de4e84e3d52f9a3e36fbdcd2c4e8dbf203b9ce4fc07c2f03be6c21d0c67503f113414ebdc6c1fb0f33c99cd5a1d09dd79e7fdf2468cf1fe1af6674361695d203801fd8ab98032f11cc9e4916dd940417082727077609d5c7f8cc6e9a3ad25dd102517164b97ab46cee3826160841a36c46a2b7b9c74da37bdc070ed41ba172033a0000000001000000"))
-#
+ca = "03" + "000001bc" + "1000" + "01b00100bb8d7b6998cca3c2b3ce12a6bd73a8872c808bb48de2a30c5ad9cdf835905d1e27505755087e675fb517bbac6beb227629b694ea68f49d357458327138978ebfd7adfde1c69d0d2f497154256f6d5567a5cf2317c589e0046c0cc2b3e986cf9b6d3b44742bd57bce32d72cd1180a7f657795976130b20508b239976d3d4cdc4d0d6e6fbb9ab6471f664a662972e406f519eab8bce87a8c0365646df5acbc04c91540b4c7c518cec680a4a6af14dae1aca0fd5525220f7f0e96fcd2adef3c803ac9427fe71034b55a50536638820ef21903d09ccddd38396675b598587fa886ca711415c813fc6d69f46552b9a0a539c18f265debd0e2e286980a118ba349c216000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b50001021bf3de4e84e3d52f9a3e36fbdcd2c4e8dbf203b9ce4fc07c2f03be6c21d0c67503f113414ebdc6c1fb0f33c99cd5a1d09dd79e7fdf2468cf1fe1af6674361695d203801fd8ab98032f11cc9e4916dd940417082727077609d5c7f8cc6e9a3ad25dd102517164b97ab46cee3826160841a36c46a2b7b9c74da37bdc070ed41ba172033a0000000001000000"
+
+with open(os.path.join("/home/jnetti/MCP/million-channels-project/test/", 'gossip_store'), 'wb') as f:
+    f.write(bytearray.fromhex("03"  # GOSSIP_VERSION
+                              "000001bc" #"000001bc"  # len
+                              #"521ef598"  # csum
+                              "1000"  # WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT
+                              "01b00100bb8d7b6998cca3c2b3ce12a6bd73a8872c808bb48de2a30c5ad9cdf835905d1e27505755087e675fb517bbac6beb227629b694ea68f49d357458327138978ebfd7adfde1c69d0d2f497154256f6d5567a5cf2317c589e0046c0cc2b3e986cf9b6d3b44742bd57bce32d72cd1180a7f657795976130b20508b239976d3d4cdc4d0d6e6fbb9ab6471f664a662972e406f519eab8bce87a8c0365646df5acbc04c91540b4c7c518cec680a4a6af14dae1aca0fd5525220f7f0e96fcd2adef3c803ac9427fe71034b55a50536638820ef21903d09ccddd38396675b598587fa886ca711415c813fc6d69f46552b9a0a539c18f265debd0e2e286980a118ba349c216000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b50001021bf3de4e84e3d52f9a3e36fbdcd2c4e8dbf203b9ce4fc07c2f03be6c21d0c67503f113414ebdc6c1fb0f33c99cd5a1d09dd79e7fdf2468cf1fe1af6674361695d203801fd8ab98032f11cc9e4916dd940417082727077609d5c7f8cc6e9a3ad25dd102517164b97ab46cee3826160841a36c46a2b7b9c74da37bdc070ed41ba172033a0000000001000000"))
+
 
 
 def main():
-    network = loadNetwork(buildNetwork.networkSaveFile)
+    network = loadNetwork(networkSaveFile)
     makeAllPrivPubKeys(network) # TODO: eventually there should be a check for cmd arg to see where privkeys were already calculated
 
 
-
-mvp()
+myA = mvp()
+diff = len(ca) - len(myA.hex())
+i = len(ca) - diff
+print(ca[i:])
