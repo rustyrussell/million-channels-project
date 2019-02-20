@@ -4,6 +4,7 @@ import json
 from common import networkClasses
 from random import seed, randint
 import copy
+from pickle import load
 
 # helper functions
 
@@ -112,6 +113,13 @@ def constructSample(sampleSize, bounds):
         if r not in sample:
             sample += [r]
     return sample
+
+
+
+def loadNetwork(networkFilename):
+    fp = open(networkFilename, "rb")
+    network = load(fp)
+    return network
 
 
 def duplicateIncompleteNetwork(network):

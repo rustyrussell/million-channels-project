@@ -1,4 +1,3 @@
-import pickle
 from config import *
 from random import randint
 import common.utility as utility
@@ -7,6 +6,7 @@ from bitcoin.wallet import CBitcoinSecret, P2PKHBitcoinAddress
 from bitcoin import SelectParams
 import hashlib
 import lightning
+from copy import deepcopy
 
 chainHash = bytearray.fromhex('06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f')
 channelType = bytearray().fromhex("0100") #256
@@ -28,124 +28,254 @@ feeBaseMSat = bytearray(feeBaseMSat.to_bytes(4, byteorder="big"))
 feePropMill = 1000
 feePropMill = bytearray(feePropMill.to_bytes(4, byteorder="big"))
 
-CHANNEL_ANNOUNCEMENT = "channel announcement"
-CHANNEL_UPDATE = "channel update"
+GOSSIP_CHANNEL_ANNOUNCEMENT = "announcement"
+GOSSIP_CHANNEL_UPDATE = "update"
 
 
-def mvp():
-    utility.setRandSeed(90)
+def main():
+    utility.setRandSeed(0)
     SelectParams("regtest")
-    network = loadNetwork(networkSaveFile)
-    ch = network.channels[0]
-    node1 = ch.node1
-    node2 = ch.node2
-    makeSinglePrivKey(node1)
-    compPubKey(node1)
-    makeSinglePrivKey(node2)
-    compPubKey(node2)
+    network = utility.loadNetwork(networkSaveFile)
+    makeAllPrivPubKeys(network)
+    filename = "gossip_store"
+    initGossip_store(filename)
+    generateAllGossip(network, filename)
 
-    ## make another priv key. We will eventually add this to the node object ##
-    bitcoinPriv1 = generateNewSecretKey().hex()
-    wifBitcoinPriv1 = wif.privToWif(bitcoinPriv1)
-    cBitcoinPrivObj1 = CBitcoinSecret(wifBitcoinPriv1)
-    cBitcoinPrivObj1._cec_key.set_compressed(True)
-    bitcoinPub1 = cBitcoinPrivObj1._cec_key.get_pubkey()
-    h = bitcoinPub1
-    # addr1 = P2PKHBitcoinAddress.from_pubkey(cBitcoinPrivObj1.pub)
-    # print(addr1)
-    bitcoinPriv2 = generateNewSecretKey().hex()
-    wifBitcoinPriv2 = wif.privToWif(bitcoinPriv2)
-    cBitcoinPrivObj2 = CBitcoinSecret(wifBitcoinPriv2)
-    cBitcoinPrivObj2._cec_key.set_compressed(True)
-    bitcoinPub2 = cBitcoinPrivObj2._cec_key.get_pubkey()
-    ## // ##
 
-    nodeid1 = bytearray(compPubKey(node1))
-    nodeid2 = bytearray(compPubKey(node2))
-    bitcoinKey1 = bytearray(bitcoinPub1)
-    import binascii
-    fp = open("h.t", "wb")
-    fp.write(binascii.hexlify(bitcoinKey1))
-    bitcoinKey2 = bytearray(bitcoinPub2)
+def generateAllGossip(network, filename):
+    """
+    Generate and write announcements and updates for all channels to gossip_store file
+    :param network: network object
+    """
+    channels = network.channels
+    for ch in channels:
+        a = createChannelAnnouncement(ch)
+        u1, u2 = createChannelUpdates(ch, a)
+        #TODO if I ever check for spaces, I need to find the bytes that are causing it, check for them here and then redo the ca and u1,u2 if that is the case
+        ba = a.serialize(full=True)
+        bu1 = u1.serialize(full=True)
+        bu2 = u2.serialize(full=True)
+        writeList = [(ba, GOSSIP_CHANNEL_ANNOUNCEMENT), (bu1, GOSSIP_CHANNEL_UPDATE), (bu2, GOSSIP_CHANNEL_UPDATE)]
+        #we write now so that we aren't holding a millioin CAs in memory
+        writeToGossip_store(writeList, filename)
 
+
+#keys
+def makeAllPrivPubKeys(network):
+    """
+    make private and public keypair for every node in the network
+    :param network: network
+    """
+    nodes = network.fullConnNodes + network.partConnNodes
+    for node in nodes:
+        if not node.hasKeys:
+            nodeCPrivObj = makeSinglePrivKey()
+            node.setNodeCPrivObj(nodeCPrivObj)
+            nodePub = compPubKey(nodeCPrivObj)
+            node.setNodeCompPub(nodePub)
+            bitcoinCPrivObj = makeSinglePrivKey()
+            bitcoinPub = compPubKey(bitcoinCPrivObj)
+            node.setBitcoinCPrivObj(bitcoinCPrivObj)
+            node.setBitcoinCompPub(bitcoinPub)
+            node.setHasKeys(True)
+
+
+def makeSinglePrivKey():
+    """
+    make privake key python bitcoin object
+    :return: python-bitcoin key object
+    """
+    randbits = generateNewSecretKey()
+    wifPriv = wif.privToWif(randbits.hex())
+    cPrivObj = CBitcoinSecret(wifPriv)
+    return cPrivObj
+
+def compPubKey(keyObj):
+    """
+    get public key from python-bitcoin key object
+    :param keyObj: python-bitcoin key object
+    :return: public bytes
+    """
+    keyObj._cec_key.set_compressed(True)
+    pubbits = keyObj._cec_key.get_pubkey()
+    return pubbits
+
+def generateNewSecretKey():
+    """
+    using default python randomness because secret keys don't have to be secure
+    :return: CECKey priv key , CPubKey
+    """
+
+    size = 32
+    randBytes = [randint(0,255) for i in range(0, size)]
+    randbits = bytes(randBytes)
+    return randbits
+
+
+def createChannelAnnouncement(channel):
+    """
+    create a channel announcement
+    :param channel: network classes channel obj
+    :return: announcement
+    """
+    nodeA = channel.node1
+    nodeB = channel.node2
+    if nodeA.nodeCompPub < nodeB.nodeCompPub:   #in bolt 7, node_id_1 is the pubkey that is "numerically-lesser" of the two
+        node1 = nodeA
+        node2 = nodeB
+    else:
+        node1 = nodeB
+        node2 = nodeA
     a = ChannelAnnouncement()
     a.setFeatureLen(featureLen)
     a.setFeatures(features)
     a.setscid(scid)
-    a.setNodeid1(nodeid1)
-    a.setNodeid2(nodeid2)
-    a.setBitcoinKey1(bitcoinKey1)
-    a.setBitcoinKey2(bitcoinKey2)
-
+    a.setNodeid1(node1.nodeCompPub)
+    a.setNodeid2(node2.nodeCompPub)
+    a.setBitcoinKey1(node1.bitcoinCompPub)
+    a.setBitcoinKey2(node2.bitcoinCompPub)
     h = a.hashPartial()
-    nodesig1 = bytearray(sign(node1.cPrivObj, h))
-    nodesig2 = bytearray(sign(node2.cPrivObj, h))
-    bitcoinSig1 = bytearray(sign(cBitcoinPrivObj1, h))
-    bitcoinSig2 = bytearray(sign(cBitcoinPrivObj2, h))
-
+    nodesig1 = bytearray(sign(node1.nodeCPrivObj, h))
+    nodesig2 = bytearray(sign(node2.nodeCPrivObj, h))
+    bitcoinSig1 = bytearray(sign(node1.bitcoinCPrivObj, h))
+    bitcoinSig2 = bytearray(sign(node2.bitcoinCPrivObj, h))
     a.setNodeSig1(nodesig1)
     a.setNodeSig2(nodesig2)
     a.setBitcoinSig1(bitcoinSig1)
     a.setBitcoinSig2(bitcoinSig2)
 
-    finalA = a.serialize(full=True)
+    return a
 
-    #channel updates
-    update1 = ChannelUpdate()
-    update1.setscid(scid)
-    update1.setTimestamp(timestamp)
-    mFlags = bytearray().fromhex("00")   #most sig bit is 0 because direction is from node 1->2. least sig bit is 0 because this is node 1's update
-    update1.setmFlags(mFlags)
-    cFlags = bytearray().fromhex("00")   #least sig bit this is node 1's update
-    update1.setcFlags(cFlags)
-    update1.setcltv(cltvDelta)
-    update1.sethtlcMSat(htlcMSat)
-    update1.setFeeBaseMSat(feeBaseMSat)
-    update1.setFeePropMill(feePropMill)
+def createChannelUpdates(channel, a):
+    """
+    create channel updates for node1 and node2 in a channel
+    :param channel: network classes channel obj
+    :param a: announcement
+    :return: updates for node 1 and node 2
+    """
+    node1 = channel.node1
+    node2 = channel.node2
 
-    #update for node 1
-    s1 = sign(node1.cPrivObj, update1.hashPartial())
-    update1.setSig(s1)
-    bUpdate1 = update1.serialize(full=True)
+    # #channel updates
+    u = ChannelUpdate()
+    u.setscid(scid)
+    u.setTimestamp(timestamp)
+    u.setcltv(cltvDelta)
+    u.sethtlcMSat(htlcMSat)
+    u.setFeeBaseMSat(feeBaseMSat)
+    u.setFeePropMill(feePropMill)
 
-    update2 = update1
-    mFlags = bytearray().fromhex("80")  # most sig bit is 0 because direction is from node 1->2. Least sig bit is 1 because this is 2's update   WTF WHY DOES 80 work???
-    update2.setmFlags(mFlags)
-    cFlags = bytearray().fromhex("80")  # least sig bit is 1 because this is 2's update
-    update2.setcFlags(cFlags)
-    s2 = sign(node2.cPrivObj, update2.hashPartial())
-    update2.setSig(s2)
-    bupdate2 = update2.serialize(full=True)
-    return finalA, bUpdate1, bupdate2
+    u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
+    u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
+    return u1, u2
+
+
+def createChannelUpdate(channel, node, u, a):
+    """
+    create one channel update
+    :param channel: network classes channel obj
+    :param node:  network classes node obj
+    :param u: incomplete update
+    :param a: announcement
+    :return: complete update
+    """
+    mFlags = ""
+    cFlags = ""
+    if node.nodeCompPub == a.id1:
+        mFlags = "00"
+        cFlags = "0"
+    elif node.nodeCompPub == a.id2:
+        mFlags = "80"
+        cFlags = "8"
+    if node == channel.node1:
+        cFlags += "0"
+    elif node == channel.node2:
+        cFlags += "1"
+    u.setmFlags(bytearray().fromhex(mFlags))
+    u.setcFlags(bytearray().fromhex(cFlags))
+    # update for node 1
+    s1 = sign(node.nodeCPrivObj, u.hashPartial())
+    u.setSig(s1)
+    return u
 
 def sign(key, h):
+    """
+    sign hash with key
+    :param key: key
+    :param h: hash bytes
+    :return: signature
+    """
     sig, i = key.sign_compact(h)
     return sig
 
-def makeAllPrivPubKeys(network):
-    nodes = network.fullConnNodes + network.partConnNodes
-    for node in nodes:
-        makeSinglePrivKey(node)
-        compPubKey(node)
 
-def makeSinglePrivKey(node):
-    randbits = generateNewSecretKey()
-    node.priv = randbits
-    wifPriv = wif.privToWif(randbits.hex())
-    cPrivObj = CBitcoinSecret(wifPriv)
-    node.setCPrivKeyObj(cPrivObj)
+## gossip store functions
+def writeToGossip_store(writeList, filename):
+    """
+    writes gossip announcements and updates to gossip_store file.
+    :param writeList: a list of tuples: [(serialized_data, GOSSIP_CHANNEL_ANNOUNCEMENT|GOSSIP_CHANNEL_UPDATE)]
+    :param filename: filename of gossip_store
+    """
+    fp = open(filename, "ab")
+    for entry in writeList:
+        a = entry[0]
+        t = entry[1]
+        if t == GOSSIP_CHANNEL_ANNOUNCEMENT:
+            writeChannelAnnouncement(a, fp)
+        elif t == GOSSIP_CHANNEL_UPDATE:
+            writeChannelUpdate(a, fp)
+    fp.close()
 
-def compPubKey(node):
-    cPrivObj = node.cPrivObj
-    cPrivObj._cec_key.set_compressed(True)
-    pubbits = cPrivObj._cec_key.get_pubkey()
-    node.setCompPubKey(pubbits)
-    print("pub length", len(pubbits))
-    return pubbits
+def initGossip_store(filename):
+    """
+    initialze gosip store
+    :param filename: gossip_store filename
+    """
+    if os.path.exists(filename):
+        os.remove(filename)  # delete current generate store if it exists
+    fp = open(filename, "wb")
+    gossipVersion = bytearray().fromhex("03")
+    fp.write(gossipVersion)
+    fp.close()
+
+def writeChannelAnnouncement(a, fp):
+    """
+    write channel announcement
+    :param a: announcement serialized
+    :param fp: file pointer
+    :return: serialized gossip msg
+    """
+    msglen = len(a)
+    bMsglenA = bytearray(msglen.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
+    WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
+    bSatoshis = bytearray(satoshis.to_bytes(8, byteorder="big"))
+    fulllen = len(WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT) + len(bMsglenA) + len(a) + len(bSatoshis) #remember, we don't have checksum and we don't count gossipVersion
+    bMsglenFull = bytearray(fulllen.to_bytes(4, byteorder="big"))
+    aToWrite = bMsglenFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA + a + bSatoshis
+    fp.write(aToWrite)
+    return aToWrite
+
+def writeChannelUpdate(u, fp):
+    """
+    write channel update
+    :param u: update serialized
+    :param fp: file pointer
+    :return: serialized gossip msg
+    """
+    msglen = len(u)
+    bMsglenA = bytearray(msglen.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
+    WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
+    fulllen = len(WIRE_GOSSIP_STORE_CHANNEL_UPDATE) + len(bMsglenA) + len(u) #remember, we don't have checksum and we don't count gossipVersion
+    bMsglenFull = bytearray(fulllen.to_bytes(4, byteorder="big"))
+    uToWrite = bMsglenFull + WIRE_GOSSIP_STORE_CHANNEL_UPDATE + bMsglenA + u
+    fp.write(uToWrite)
+    # print("len of u:", len(a))
+    # print(len(aToWrite.hex()))
+    # print(aToWrite.hex())
+    return uToWrite
 
 
-
-
+#classes
 
 class ChannelUpdate():
     def __init__(self):
@@ -229,7 +359,6 @@ class ChannelAnnouncement():
         a = self.serialize(False)
         h = hashlib.sha256(a).digest()
         hh = hashlib.sha256(h).digest()
-        print("hash", hh.hex())
         self.printAnnoucement(False)
         return hh
 
@@ -245,125 +374,8 @@ class ChannelAnnouncement():
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
 
-def generateNewSecretKey():
-    """
-    using default python randomness because secret keys don't have to be secure--this is a test suite.
-
-    :return: CECKey priv key , CPubKey
-    """
-
-    size = 32
-    randBytes = [randint(0,255) for i in range(0, size)]
-    randbits = b''
-    randbits = bytes(randBytes)
-    return randbits
-
-
-## gossip store functions
-
-
-def writeToGossip_store(writeList, filename):
-    fp = open(filename, "wb")
-    initGossip_store(fp)
-    for entry in writeList:
-        a = entry[0]
-        t = entry[1]
-        if t == CHANNEL_ANNOUNCEMENT:
-            writeChannelAnnouncement(a, fp)
-        elif t == CHANNEL_UPDATE:
-            writeChannelUpdate(a, fp)
-    fp.close()
-
-def initGossip_store(fp):
-    gossipVersion = bytearray().fromhex("03")
-    fp.write(gossipVersion)
-
-def writeChannelAnnouncement(a, fp):
-    msglen = getmsglen(a)
-    bMsglenA = bytearray(msglen.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
-    WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
-    bSatoshis = bytearray(satoshis.to_bytes(8, byteorder="big"))
-    fulllen = len(WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT) + len(bMsglenA) + len(a) + len(bSatoshis) #remember, we don't have checksum and we don't count gossipVersion
-    bMsglenFull = bytearray(fulllen.to_bytes(4, byteorder="big"))
-    aToWrite = bMsglenFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA + a + bSatoshis
-    fp.write(aToWrite)
-    return aToWrite
-
-def writeChannelUpdate(a, fp):
-    msglen = getmsglen(a)
-    bMsglenA = bytearray(msglen.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
-    WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
-    fulllen = len(WIRE_GOSSIP_STORE_CHANNEL_UPDATE) + len(bMsglenA) + len(a) #remember, we don't have checksum and we don't count gossipVersion
-    bMsglenFull = bytearray(fulllen.to_bytes(4, byteorder="big"))
-    aToWrite = bMsglenFull + WIRE_GOSSIP_STORE_CHANNEL_UPDATE + bMsglenA + a
-    fp.write(aToWrite)
-    # print("len of u:", len(a))
-    # print(len(aToWrite.hex()))
-    # print(aToWrite.hex())
-    return aToWrite
-
-
-def getmsglen(a):
-    return len(a)
-
-
-def loadNetwork(networkFilename):
-    fp = open(networkFilename, "rb")
-    network = pickle.load(fp)
-    return network
-
-
-
-def main():
-    myA, update1, update2 = mvp()
-    lst = [(myA, CHANNEL_ANNOUNCEMENT)]
-    # lst = [(myA, CHANNEL_ANNOUNCEMENT), (update1, CHANNEL_UPDATE), (update2, CHANNEL_UPDATE)]
-    writeToGossip_store(lst, "gossip_store")
-
-    h = myA.hex()[516:]
-    print(update1.hex()[220:])
-
 
 
 main()
-
-
-
-
-
-
-# for i in range(0, len(h), 2):
-#     print(h[i]+h[i+1])
-# saved = "01021ea7c2eadf8a29eb8690511a519b5656e29aa0a853771c4e38e65c5abf43d907295a915e69e451f4c7a0c3dc13dd943cfbe3ae88c0b96667cd7d58955dbfedcf43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b500015b8d9b440000009000000000000003e8000003e800000001"
-# print(saved[219:])
-
-#
-#
-
-
-#ca = "03" + "000001bc" + "1000" + "01b00100bb8d7b6998cca3c2b3ce12a6bd73a8872c808bb48de2a30c5ad9cdf835905d1e27505755087e675fb517bbac6beb227629b694ea68f49d357458327138978ebfd7adfde1c69d0d2f497154256f6d5567a5cf2317c589e0046c0cc2b3e986cf9b6d3b44742bd57bce32d72cd1180a7f657795976130b20508b239976d3d4cdc4d0d6e6fbb9ab6471f664a662972e406f519eab8bce87a8c0365646df5acbc04c91540b4c7c518cec680a4a6af14dae1aca0fd5525220f7f0e96fcd2adef3c803ac9427fe71034b55a50536638820ef21903d09ccddd38396675b598587fa886ca711415c813fc6d69f46552b9a0a539c18f265debd0e2e286980a118ba349c216000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b50001021bf3de4e84e3d52f9a3e36fbdcd2c4e8dbf203b9ce4fc07c2f03be6c21d0c67503f113414ebdc6c1fb0f33c99cd5a1d09dd79e7fdf2468cf1fe1af6674361695d203801fd8ab98032f11cc9e4916dd940417082727077609d5c7f8cc6e9a3ad25dd102517164b97ab46cee3826160841a36c46a2b7b9c74da37bdc070ed41ba172033a0000000001000000"
-update =  "00000086" + "88c703c8"  +"1001" + "008201021ea7c2eadf8a29eb8690511a519b5656e29aa0a853771c4e38e65c5abf43d907295a915e69e451f4c7a0c3dc13dd943cfbe3ae88c0b96667cd7d58955dbfedcf43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b500015b8d9b440000009000000000000003e8000003e800000001"
-# print(update)
-# with open(os.path.join(l1.daemon.lightning_dir, 'gossip_store'), 'wb') as f:
-#     f.write(bytearray.fromhex("03"  # GOSSIP_VERSION
-#                               "000001bc"  # len
-#                               "521ef598"  # csum
-#                               "1000"  # WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT
-#                               "01b00100bb8d7b6998cca3c2b3ce12a6bd73a8872c808bb48de2a30c5ad9cdf835905d1e27505755087e675fb517bbac6beb227629b694ea68f49d357458327138978ebfd7adfde1c69d0d2f497154256f6d5567a5cf2317c589e0046c0cc2b3e986cf9b6d3b44742bd57bce32d72cd1180a7f657795976130b20508b239976d3d4cdc4d0d6e6fbb9ab6471f664a662972e406f519eab8bce87a8c0365646df5acbc04c91540b4c7c518cec680a4a6af14dae1aca0fd5525220f7f0e96fcd2adef3c803ac9427fe71034b55a50536638820ef21903d09ccddd38396675b598587fa886ca711415c813fc6d69f46552b9a0a539c18f265debd0e2e286980a118ba349c216000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b50001021bf3de4e84e3d52f9a3e36fbdcd2c4e8dbf203b9ce4fc07c2f03be6c21d0c67503f113414ebdc6c1fb0f33c99cd5a1d09dd79e7fdf2468cf1fe1af6674361695d203801fd8ab98032f11cc9e4916dd940417082727077609d5c7f8cc6e9a3ad25dd102517164b97ab46cee3826160841a36c46a2b7b9c74da37bdc070ed41ba172033a0000000001000000"
-#                               "00000086"  # len
-#                               "88c703c8"  # csum
-#                               "1001"  # WIRE_GOSSIP_STORE_CHANNEL_UPDATE
-#                               "008201021ea7c2eadf8a29eb8690511a519b5656e29aa0a853771c4e38e65c5abf43d907295a915e69e451f4c7a0c3dc13dd943cfbe3ae88c0b96667cd7d58955dbfedcf43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000013a63c0000b500015b8d9b440000009000000000000003e8000003e800000001"
-#                               "00000099"  # len
-#                               "12abbbba"  # csum
-#                               "1002"  # WIRE_GOSSIP_STORE_NODE_ANNOUNCEMENT
-#                               "00950101cf5d870bc7ecabcb7cd16898ef66891e5f0c6c5851bd85b670f03d325bc44d7544d367cd852e18ec03f7f4ff369b06860a3b12b07b29f36fb318ca11348bf8ec00005aab817c03f113414ebdc6c1fb0f33c99cd5a1d09dd79e7fdf2468cf1fe1af6674361695d23974b250757a7a6c6549544300000000000000000000000000000000000000000000000007010566933e2607"))
-#
-
-
-#
-# def main():
-#     network = loadNetwork(networkSaveFile)
-#     makeAllPrivPubKeys(network) # TODO: eventually there should be a check for cmd arg to see where privkeys were already calculated
 
 

@@ -10,6 +10,7 @@ class Node:
     Node class
     """
     def __init__(self, nodeid, channels=None, maxChannels=None):
+        self.setHasKeys(False)
         if channels == None:
             self.channels = []
             self.value = 0
@@ -35,14 +36,20 @@ class Node:
         self.nodeid = nodeid
         self.maxChannels = maxChannels
 
-    def setPrivKey(self, priv):
-        self.priv = priv
+    def setHasKeys(self, b):
+        self.hasKeys = b
 
-    def setCPrivKeyObj(self, cPrivObj):
-        self.cPrivObj = cPrivObj
+    def setNodeCPrivObj(self, cPrivObj):
+        self.nodeCPrivObj = cPrivObj
 
-    def setCompPubKey(self, compPub):
-        self.compPub = compPub
+    def setBitcoinCPrivObj(self, cPrivObj):
+        self.bitcoinCPrivObj = cPrivObj
+
+    def setNodeCompPub(self, compPub):
+        self.nodeCompPub = compPub
+
+    def setBitcoinCompPub(self, compPub):
+        self.bitcoinCompPub = compPub
 
 
 
