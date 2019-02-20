@@ -2,7 +2,7 @@
 import bisect
 import json
 from common import networkClasses
-import random
+from random import seed, randint
 import copy
 
 # helper functions
@@ -77,13 +77,13 @@ def jsonToObject(jn):
     return nodes, channels
 
 
-def setRandSeed(seed):
+def setRandSeed(s):
     """
     set random seed for random module (not for cryptographic purposes)
     :param seed:some int
     :return: None
     """
-    random.seed(seed)
+    seed(s)
 
 
 
@@ -108,7 +108,7 @@ def sortByNodeId(node):
 def constructSample(sampleSize, bounds):
     sample = []
     for i in range(0, sampleSize):
-        r = random.randint(bounds[0], bounds[1])   #note: range is inclusive
+        r = randint(bounds[0], bounds[1])   #note: range is inclusive
         if r not in sample:
             sample += [r]
     return sample
