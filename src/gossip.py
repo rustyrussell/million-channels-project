@@ -13,12 +13,11 @@ channelType = bytearray().fromhex("0100") #256
 updateType = bytearray().fromhex("0102") #258
 featureLen = bytearray().fromhex("0000")
 features = bytearray()
-scid = bytearray().fromhex("0000CA0000010001")  # for now we are placing it in the 202nd height (0 is starting height), 1st transaction (I am assuming 0th tx is coinbase), 2nd output (1st at 0 index is change)
+initialscid = bytearray().fromhex("0000010000010001")  #block height 1, tx 1, output 1
 satoshis = 10000000 # 1 btc
 
 #update fields
-timestamp = 1550513768     # timestamp is from time.time()
-timestamp = bytearray(timestamp.to_bytes(4, byteorder="big"))
+initialTimestamp = 1550513768     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
 cltvDelta = 10
 cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
 htlcMSat = 10000
@@ -48,9 +47,19 @@ def generateAllGossip(network, filename):
     :param network: network object
     """
     channels = network.channels
+    timestamp = initialTimestamp
+    scid = initialscid
+    i = 0
     for ch in channels:
-        a = createChannelAnnouncement(ch)
-        u1, u2 = createChannelUpdates(ch, a)
+        # #
+        # if i == 10:  # TODO: this is for testing
+        #     break
+        # i += 1
+        # #
+        timestamp += 1
+        btimestamp = bytearray(timestamp.to_bytes(4, byteorder="big"))
+        a = createChannelAnnouncement(ch,scid)
+        u1, u2 = createChannelUpdates(ch, a, btimestamp, scid)
         #TODO if I ever check for spaces, I need to find the bytes that are causing it, check for them here and then redo the ca and u1,u2 if that is the case
         ba = a.serialize(full=True)
         bu1 = u1.serialize(full=True)
@@ -58,6 +67,7 @@ def generateAllGossip(network, filename):
         writeList = [(ba, GOSSIP_CHANNEL_ANNOUNCEMENT), (bu1, GOSSIP_CHANNEL_UPDATE), (bu2, GOSSIP_CHANNEL_UPDATE)]
         #we write now so that we aren't holding a millioin CAs in memory
         writeToGossip_store(writeList, filename)
+        scid = getNextScid(scid)
 
 
 #keys
@@ -82,7 +92,7 @@ def makeAllPrivPubKeys(network):
 
 def makeSinglePrivKey():
     """
-    make privake key python bitcoin object
+    make private key python bitcoin object
     :return: python-bitcoin key object
     """
     randbits = generateNewSecretKey()
@@ -112,7 +122,7 @@ def generateNewSecretKey():
     return randbits
 
 
-def createChannelAnnouncement(channel):
+def createChannelAnnouncement(channel, scid):
     """
     create a channel announcement
     :param channel: network classes channel obj
@@ -146,7 +156,7 @@ def createChannelAnnouncement(channel):
 
     return a
 
-def createChannelUpdates(channel, a):
+def createChannelUpdates(channel, a, timestamp, scid):
     """
     create channel updates for node1 and node2 in a channel
     :param channel: network classes channel obj
@@ -198,6 +208,29 @@ def createChannelUpdate(channel, node, u, a):
     u.setSig(s1)
     return u
 
+def getNextScid(scid):
+    """
+    basic incremeneting method that currently allows 100 lightning txs in a block. This is naive may be changed in the future
+    :param scid: scid
+    :return: new scid
+    """
+    bheight = scid[0:3]
+    tx = int.from_bytes(bytes(scid[3:6]), "big")
+    boutput = scid[6:]
+
+    if tx > 100:
+        height = int.from_bytes(bytes(bheight), "big")
+        bheight = bytearray(height.to_bytes(3, "big"))
+        height += 1
+        tx = 1
+    else:
+        tx += 1
+
+    btx = bytearray(tx.to_bytes(3, "big"))
+
+    return bheight + btx + boutput
+
+
 def sign(key, h):
     """
     sign hash with key
@@ -228,7 +261,7 @@ def writeToGossip_store(writeList, filename):
 
 def initGossip_store(filename):
     """
-    initialze gosip store
+    initialze gosip store by making a new one and writing gossip store version (3)
     :param filename: gossip_store filename
     """
     if os.path.exists(filename):
