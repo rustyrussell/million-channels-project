@@ -205,7 +205,8 @@ class Network:
     def makeiGraph(self, nodes):
         nodes.sort(key=utility.sortByNodeId)
         g = Graph()
-        g.add_vertices(len(nodes))
+        for n in nodes:
+            g.add_vertex(str(n.nodeid))
         # for c in self.channels:
         #     g.add_edge(c.node1.nodeid, c.node2.nodeid)
         return g
@@ -242,9 +243,9 @@ class IncompleteNetwork(Network):     # inherits Network class
             self.igraph = igraph
         else:
             if partConnNodes != None:
-                self.igraph = self.makeiGraph(fullConnNodes + disconnNodes + partConnNodes)
+                self.igraph = self.makeiGraph(fullConnNodes + partConnNodes)
             else:
-                self.igraph = self.makeiGraph(fullConnNodes + disconnNodes)
+                self.igraph = self.makeiGraph(fullConnNodes)
 
     def createNewChannel(self, node1, node2):
         """
@@ -253,6 +254,8 @@ class IncompleteNetwork(Network):     # inherits Network class
         :param node2: node obj
         :return: channel
         """
+
+
         if node1.channelCount == 0:    # if disconnected
             self.disconnNodes.remove(node1)
             if node1.maxChannels == 1:
@@ -260,6 +263,7 @@ class IncompleteNetwork(Network):     # inherits Network class
                 self.unfullNodes.remove(node1)
             else:
                 self.partConnNodes += [node1]
+            self.igraph.add_vertex(str(node1.nodeid))  # add to igraph
         else:
             if node1.channelCount == node1.maxChannels - 1:
                 self.fullConnNodes += [node1]
@@ -274,6 +278,7 @@ class IncompleteNetwork(Network):     # inherits Network class
                 self.unfullNodes.remove(node2)
             else:
                 self.partConnNodes += [node2]
+            self.igraph.add_vertex(str(node2.nodeid))  # add to igraph
         else:
             if node2.channelCount == node2.maxChannels - 1:
                 self.fullConnNodes += [node2]
@@ -286,7 +291,8 @@ class IncompleteNetwork(Network):     # inherits Network class
         channel = Channel(node1, node2)
         node1.addChannel(channel)
         node2.addChannel(channel)
-        self.igraph.add_edge(node1.nodeid, node2.nodeid)
+
+        self.igraph.add_edge(str(node1.nodeid), str(node2.nodeid))
 
         return channel
 
@@ -298,10 +304,12 @@ class IncompleteNetwork(Network):     # inherits Network class
         """
         node1 = channel.node1
         node2 = channel.node2
+        self.igraph.delete_edges([(str(node1.nodeid), str(node2.nodeid))])
         if node1.maxChannels == 1:   # if full
             self.fullConnNodes.remove(node1)
             self.disconnNodes += [node1]
             self.unfullNodes += [node1]
+            self.igraph.delete_vertices([str(node1.nodeid)])
         elif node1.isFull():
             self.fullConnNodes.remove(node1)
             self.partConnNodes += [node1]
@@ -309,13 +317,12 @@ class IncompleteNetwork(Network):     # inherits Network class
         elif node1.channelCount == 1: # partial but will be disconnected
             self.partConnNodes.remove(node1)
             self.disconnNodes += [node1]
+            self.igraph.delete_vertices([str(node1.nodeid)])
         if node2.maxChannels == 1:   # if full
-            try:
-                self.fullConnNodes.remove(node2)
-            except:
-                print("error")
+            self.fullConnNodes.remove(node2)
             self.disconnNodes += [node2]
             self.unfullNodes += [node2]
+            self.igraph.delete_vertices([str(node2.nodeid)])
         elif node2.isFull():
             self.fullConnNodes.remove(node2)
             self.partConnNodes += [node2]
@@ -323,9 +330,9 @@ class IncompleteNetwork(Network):     # inherits Network class
         elif node2.channelCount == 1: # partial but will be disconnected
             self.partConnNodes.remove(node2)
             self.disconnNodes += [node2]
+            self.igraph.delete_vertices([str(node2.nodeid)])
         node1.removeChannel(channel)
         node2.removeChannel(channel)
-        self.igraph.delete_edges([(node1.nodeid, node2.nodeid)])
 
 
     def pushUnfull(self, node):

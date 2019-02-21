@@ -19,18 +19,23 @@ from config import *
 #functions
 
 def main():
+    ti = time.time()
     fp = open(powerLawReg.channelFileName)
     jn = utility.loadJson(fp)
     nodes, channels = utility.jsonToObject(jn)
+    t0 = time.time()
+    print("load json done", t0-ti)
     targetNetwork = networkClasses.Network(fullConnNodes=nodes, analysis=True)
     utility.setRandSeed(randSeed)
     newNodes = nodeDistribution(targetNetwork, finalNumChannels)   # eventually a config command can turn on and off the rand dist
-    incompleteNetwork = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     t1 = time.time()
-    newNetwork = buildNetwork(targetNetwork, incompleteNetwork)
+    print("nodeDistribution done", t1-t0)
+    incompleteNetwork = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     t2 = time.time()
-    print("time: " + str(t2-t1))
-    print(len(newNetwork.channels))
+    newNetwork = buildNetwork(targetNetwork, incompleteNetwork)
+    t3 = time.time()
+    print("print build network done", t3-t2)
+    print("num of channels", len(newNetwork.channels))
     #graph.graph_tool(newNetwork, str(finalNumChannels) + "backtracking_with_betweenness_allcandrandom_seed1_30sample_3cand"
     f = open(networkSaveFile, "wb")
     pickle.dump(newNetwork, f)
@@ -62,7 +67,8 @@ def buildNetwork(targetNetwork, incompleteNetwork):
     channelGenParams = networkClasses.ChannelGenParams(targetNetwork, incompleteNetwork)    # empty params
     bestNetwork = incompleteNetwork
 
-    j = 0
+    j = 1
+    k = 1
     while len(bestNetwork.unfullNodes) > 1:    #implicitly (totalChannels + channelsPerRound) <= finalNumChannels
         currNetwork = bestNetwork
         # for t in range(0, backtracksPerCheckpoint):
@@ -77,6 +83,10 @@ def buildNetwork(targetNetwork, incompleteNetwork):
             currNetwork.pushUnfull(currNetwork.popUnfull())
         #channelGenParams, bestNetwork = checkpointFunction(currNetwork, bestNetwork, targetNetwork, channelGenParams)
         # print(j)
+        if j == 10:
+            print("round:", k*100)
+            k += 1
+            j = 1
         j += 1
 
     return bestNetwork
@@ -250,25 +260,25 @@ def checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestCha
 
     betweennessSampleSize = 30
     nodes = network.fullConnNodes + network.partConnNodes
+    numSample = utility.constructSample(betweennessSampleSize, (0, len(nodes) - 1))
+    nodeidSample = utility.numSampleToNodeid(nodes, numSample)
 
     if bestChangesAnalysis == []:
-        numSample = utility.constructSample(betweennessSampleSize, (0, len(nodes) - 1))
         igraph = network.igraph
-        bs = igraph.betweenness(numSample)
+        bs = igraph.betweenness(nodeidSample)
         avgB = sum(bs)/betweennessSampleSize
         bestChanges = currChanges
-        bestChangesAnalysis = [numSample, avgB]
+        bestChangesAnalysis = [avgB]
     else:
-        numSample = bestChangesAnalysis[0]
-        avgB = bestChangesAnalysis[1]
+        avgB = bestChangesAnalysis[0]
 
         igraph = network.igraph
-        newbs = igraph.betweenness(numSample)
+        newbs = igraph.betweenness(nodeidSample)
         newAvgB = sum(newbs) / betweennessSampleSize
 
         if newAvgB < avgB:
             bestChanges = currChanges
-            bestChangesAnalysis = [numSample, newAvgB]
+            bestChangesAnalysis = [newAvgB]
 
 
     return channelGenParams, bestChanges.copy(), bestChangesAnalysis  #TODO do I need .copy() ?

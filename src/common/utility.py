@@ -114,7 +114,11 @@ def constructSample(sampleSize, bounds):
             sample += [r]
     return sample
 
-
+def numSampleToNodeid(nodes, numSample):
+    nodeidSample = []
+    for num in numSample:
+        nodeidSample += [str(nodes[num].nodeid)]
+    return nodeidSample
 
 def loadNetwork(networkFilename):
     fp = open(networkFilename, "rb")
