@@ -106,18 +106,36 @@ def sortByNodeId(node):
 
 
 
-def constructSample(sampleSize, bounds):
+def constructSample(sampleSize, bounds, full):
+    """
+    Construct num sample. if full is True, then we make sampleSize elements. If it is false, we don't force the size.
+    This distinction is useful for some applications.
+    TODO: consider binary search for checking for duplicates
+    :param sampleSize: sample size num
+    :param bounds: bounds of generated number
+    :param full: bool
+    :param list of nums to avoid
+    :return:
+    """
+
     sample = []
-    for i in range(0, sampleSize):
-        r = randint(bounds[0], bounds[1])   #note: range is inclusive
-        if r not in sample:
-            sample += [r]
+    if full:
+        while len(sample) < sampleSize:
+            r = randint(bounds[0], bounds[1])  # note: range is inclusive
+            if r not in sample:
+                sample += [r]
+    else:
+        for i in range(0, sampleSize):
+            r = randint(bounds[0], bounds[1])   #note: range is inclusive
+            if r not in sample:
+                sample += [r]
     return sample
 
 def numSampleToNodeid(nodes, numSample):
     nodeidSample = []
     for num in numSample:
-        nodeidSample += [str(nodes[num].nodeid)]
+        nodeid = str(nodes[num].nodeid)
+        nodeidSample += [nodeid]
     return nodeidSample
 
 def loadNetwork(networkFilename):
