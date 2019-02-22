@@ -5,6 +5,7 @@ from common import networkClasses
 from random import seed, randint
 import copy
 from pickle import load
+from igraph import Graph
 
 # helper functions
 
@@ -61,6 +62,7 @@ def jsonToObject(jn):
         else:
             bisect.insort_left(nodes, nodeObj2)
 
+
         pair = False
         if node1Exists != -1 and node2Exists != -1:
             node1Channels = nodeObj1.channels
@@ -71,11 +73,25 @@ def jsonToObject(jn):
         if pair == False:
             channelObj.setParty1(nodeObj1)
             channelObj.setParty2(nodeObj2)
-            nodeObj1.addChannel(channelObj)
-            nodeObj2.addChannel(channelObj)
+            nodeObj1.addChannel(channelObj, temp=False)
+            nodeObj2.addChannel(channelObj, temp=False)
             bisect.insort_left(channels, channelObj)
 
-    return nodes, channels
+    return nodes, channels,
+
+
+def makeigraphTargetNetwork(nodes, channels):
+    g = Graph(directed=False)
+
+    for n in nodes:
+        g.add_vertex(str(n.nodeid))
+
+    for ch in channels:
+        nodeid1 = ch.node1.nodeid
+        nodeid2 = ch.node2.nodeid
+        g.add_edge(nodeid1, nodeid2)
+
+    return g
 
 
 def setRandSeed(s):

@@ -8,11 +8,11 @@ import random
 from common import networkClasses
 from common import utility
 import powerLawReg
-from graph import graph
+#from graph import graph
 import pickle
 import time
 from config import *
-
+import bisect
 
 
 
@@ -22,10 +22,12 @@ def main():
     ti = time.time()
     fp = open(powerLawReg.channelFileName)
     jn = utility.loadJson(fp)
-    nodes, channels = utility.jsonToObject(jn)
+    nodes, channels= utility.jsonToObject(jn)
     t0 = time.time()
     print("load json done", t0-ti)
-    targetNetwork = networkClasses.Network(fullConnNodes=nodes, analysis=True)
+    targetNetwork = networkClasses.Network(fullConnNodes=nodes)
+    targetNetwork.channels = channels
+    targetNetwork.analysis.analyze()
     utility.setRandSeed(randSeed)
     newNodes = nodeDistribution(targetNetwork, finalNumChannels)   # eventually a config command can turn on and off the rand dist
     t1 = time.time()
@@ -36,9 +38,22 @@ def main():
     t3 = time.time()
     print("print build network done", t3-t2)
     print("num of channels", len(newNetwork.channels))
-    graph.graph_tool(newNetwork, str(finalNumChannels) + "network_2_21_shortestpath_~500_3can_4round<")
+    t4 = time.time()
+    newbsAvg = newNetwork.analysis.betweenness()
+    t5 = time.time()
+    print("new betweenness (", str(t5-t4), ")", newbsAvg)
+    g = utility.makeigraphTargetNetwork(nodes, channels)
+    targetNetwork.igraph = g
+    t6 = time.time()
+    orgbsAvg = targetNetwork.analysis.betweenness()
+    t7 = time.time()
+    print("original betweenness (", str(t7-t6), ")", orgbsAvg)
+
+    #graph.graph_tool(newNetwork, str(finalNumChannels) + "network_2_21_shortestpath_~500_10can_1round<")
     f = open(networkSaveFile, "wb")
     pickle.dump(newNetwork, f)
+
+
 
 
 def buildNetwork(targetNetwork, incompleteNetwork):
@@ -62,40 +77,63 @@ def buildNetwork(targetNetwork, incompleteNetwork):
     node2 = incompleteNetwork.popUnfull()
     incompleteNetwork.pushUnfull(node1)
     incompleteNetwork.pushUnfull(node2)
-    startingChannel = incompleteNetwork.createNewChannel(node1, node2)
+    startingChannel = networkClasses.Channel(node1, node2)
+    applyStateChanges(incompleteNetwork, [startingChannel])
     incompleteNetwork.addChannels([startingChannel])
-    channelGenParams = networkClasses.ChannelGenParams(targetNetwork, incompleteNetwork)    # empty params
-    bestNetwork = incompleteNetwork
+    currNetwork = incompleteNetwork
 
     j = 1
     k = 1
-    while len(bestNetwork.unfullNodes) > 1:    #implicitly (totalChannels + channelsPerRound) <= finalNumChannels
-        currNetwork = bestNetwork
-        # for t in range(0, backtracksPerCheckpoint):
-        params, stateChanges, changeAnalysis, currChanges = roundRec(currNetwork, targetNetwork, [], [], [None,None,None], [], channelGenParams, 0, 0)
+    while len(currNetwork.unfullNodes) > 1:    #implicitly (totalChannels + channelsPerRound) <= finalNumChannels
+        stateChanges, changeAnalysis, currChanges = roundRec(currNetwork, {}, [], [], [None,None,None], 0, 0)
         applyStateChanges(currNetwork, stateChanges)
-        currNetwork.addChannels(stateChanges)
-        if len(currNetwork.unfullNodes) < channelsPerRound:
-            shift = len(currNetwork.unfullNodes)
-        else:
-            shift = channelsPerRound
-        for i in range(0, shift):
-            currNetwork.pushUnfull(currNetwork.popUnfull())
-        #channelGenParams, bestNetwork = checkpointFunction(currNetwork, bestNetwork, targetNetwork, channelGenParams)
-        # print(j)
-        if j == 2:
-            print("round:", k*2)
+
+        #testing
+        if j == 100:
+            print("channel created:", k*100*channelsPerRound)
             k += 1
             j = 1
-        if k == 10:
-            print("20")
         j += 1
+        #testing
 
-    return bestNetwork
+    return currNetwork
+
+
+def applyStateChanges(network, channels):
+    """
+    once the ideal channel list is created, we apply it and finalize it here
+    :param network: incomplete Network
+    :param channels: channel list
+    :return:
+    """
+    network.addChannels(channels)
+
+    for c in channels:
+        node1 = c.node1
+        node2 = c.node2
+        network.createNewChannel(node1, node2, temp=False)
+
+    for i in range(0, len(channels)):
+        network.pushUnfull(network.popUnfull())
+
+    network.partConnNodes = []
+    network.disconnNodes = []
+    newUnfull = []
+    for node in network.unfullNodes:
+        if node.isFull():
+            network.fullConnNodes += [node]
+        elif node.channelCount == 0:
+            network.disconnNodes += [node]
+            newUnfull += [node]
+        else:
+            network.partConnNodes += [node]
+            newUnfull += [node]
+    network.unfullNodes = newUnfull
 
 
 
-def roundRec(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, nodesInNewChannels, channelGenParams, i, t):
+
+def roundRec(network, changeDict, currChanges, bestChanges, bestChangesAnalysis, i, t):
     """
     Backtracks though every permutation (channelsPerRound^candidateNumber permutations)
     :param nodes:
@@ -106,150 +144,98 @@ def roundRec(network, targetNetwork, currChanges, bestChanges, bestChangesAnalys
     :return:
     """
     nodes = network.unfullNodes
+    currNode = None
+    candidates = 0
+    if len(nodes) > 0:
+        currNode = network.popUnfull()    #pop from queue
+        network.pushUnfull(currNode)
+        candidates = generateCandidates(network, currNode)
 
-    if len(currChanges) > 10:
-        print("over 10")
+    if i == channelsPerRound or len(nodes) <= 1 or len(candidates) == 0:  # if rounds complete or no more unfull nodes or no candidates
+        bestChanges, bestChangesAnalysis = checkpointFunction(network, changeDict, currChanges, bestChanges, bestChangesAnalysis)
+        return bestChanges, bestChangesAnalysis, currChanges
 
-    if i == channelsPerRound or len(nodes) <= 1:  # if rounds complete or no more unfull nodes
-        channelGenParams, bestChanges, bestChangesAnalysis = checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, nodesInNewChannels, channelGenParams)
-        return channelGenParams, bestChanges, bestChangesAnalysis, currChanges
+    for c in range(0, len(candidates)):
+        other = candidates[c]   #cand c
+        addChangeDict(changeDict, currNode, other)  # must happen before add channel
+        channel = network.createNewChannel(currNode, other, temp=True)    # create temp channel (meaning don't add to nodes' channel lists)
+        currChanges += [channel] # add channel to current changes
+        bestChanges, bestChangesAnalysis, currChanges = roundRec(network, changeDict, currChanges, bestChanges, bestChangesAnalysis, i+1, t)
+        currChanges = currChanges[0:-1] # delete the last change
+        network.removeChannel(channel, temp=True) # reverse previous temp channel add
+        removeChangeDict(changeDict, currNode, other) # must happen after remove channel
 
-    currNode = network.popUnfull()    #pop from queue
-    network.pushUnfull(currNode)
-
-    candidates = generateCandidates(network, currNode, channelGenParams)
-    for c in range(0, candidateNumber):
-        other = candidates[c]
-        channel = network.createNewChannel(currNode, other)
-        currChanges += [channel]
-        # removeOther = False
-        # if other not in nodesInNewChannels:
-        #     nodesInNewChannels += [other]
-        #     removeOther = True
-        # removeCurr = False
-        # if currNode not in nodesInNewChannels:
-        #     nodesInNewChannels += [currNode]
-        #     removeCurr = True
-        channelGenParams, bestChanges, bestChangesAnalysis, currChanges = roundRec(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, [], channelGenParams, i+1, t)
-        # if removeOther:
-        #     nodesInNewChannels.remove(other)
-        # if c == (candidateNumber-1) and removeCurr:
-        #     nodesInNewChannels.remove(currNode)
-        network.removeChannel(channel) # reverse previous channel add
-        network.unfullNodes = nodes # revert to old unfill queue
-        currChanges = currChanges[0:-1] # revert to old changes
-
-    return channelGenParams, bestChanges, bestChangesAnalysis, currChanges
+    return bestChanges, bestChangesAnalysis, currChanges
 
 
-def applyStateChanges(network, channels):
+def addChangeDict(changeDict, currNode, other):
     """
-    once the ideal channel list is created, we apply it and finalize it here
-    :param network: incomplete Network
-    :param channels: channel list
+    Change dict tracks when nodes are added to the network.
+    :param changeDict:
+    :param currNode:
+    :param other:
     :return:
     """
-    for c in channels:
-        node1 = c.node1
-        node2 = c.node2
-        network.createNewChannel(node1, node2)
+    if not currNode.inNetwork():
+        changeDict[str(currNode.nodeid)] = True
+    else:
+        changeDict[str(currNode.nodeid)] = False
+    if not other.inNetwork():
+        changeDict[str(other.nodeid)] = True
+    else:
+        changeDict[str(other.nodeid)] = False
 
 
+def removeChangeDict(changeDict, currNode, other):
+    """
+    Set to false is node falls out of network
+    :param changeDict:
+    :param currNode:
+    :param other:
+    :return:
+    """
+    if not currNode.inNetwork():
+        changeDict[str(currNode.nodeid)] = False
+    if not other.inNetwork():
+        changeDict[str(other.nodeid)] = False
 
-def generateCandidates(network, node, channelGenParams):
+
+def generateCandidates(network, node):
     """
     Generates candidateNumber number of candidates for backtracking
-    :param nodes:
-    :param index:
-    :param params:
-    :return:
+    :param network
+    :param node
+    :return: cand list
     """
-    candidateList = []
-
-    # this clustering bit is too slow!
-    # if node.maxChannels > 1:
-    #     sampleSize = 5
-    #     # maxChannels = node.maxChannels
-    #     # analysis = channelGenParams.targetNetwork.analysis
-    #     # myCluster = measures.calcNodeCluster(node)
-    #     # targetCluster = analysis.cluster
-    #     # clusterParams = targetCluster[3]
-    #     # targetClusterY = powerLawReg.negExpFunc(maxChannels, clusterParams[0], clusterParams[1], clusterParams[2])
-    #
-    #     ns = node.neighbors
-    #     #collecting neighbors of neighbors that are not neighbors or oneself or full
-    #     nns = []
-    #     for n in ns:
-    #         s = n.neighbors
-    #         for nn in s:
-    #             if nn not in ns and nn != node and not nn.isFull():
-    #                 nns += [nn]
-    #
-    #     if len(nns) == 0:
-    #         candidateList += [genRandomCand(network, node)]
-    #     else:
-    #         # if myCluster <= targetCluster:
-    #
-    #         sample = []
-    #         for i in range(0, sampleSize):
-    #             if i+1 > len(nns):
-    #                 break
-    #             r = random.randint(0, len(nns)-1)
-    #             if r not in sample:
-    #                 sample += [r]
-    #
-    #
-    #         #find nn that has highest (nnn that are in ns)/(total nnn)
-    #         interconnList = []
-    #         largest = 0
-    #         largestNN = None
-    #         for i in range(0, len(sample)):
-    #             nn = nns[sample[i]]
-    #             nnns = nn.neighbors
-    #             if len(nnns) == 0:
-    #                 continue
-    #             elif nn.maxChannels == 1:
-    #                 continue
-    #             else:
-    #                 s = 0
-    #                 for nnn in nnns:
-    #                     if nnn in ns:
-    #                         s += 1
-    #                 s = s / len(nnns)
-    #                 interconnList += [(nn, s)]
-    #                 if largest < s:
-    #                     largestNN = nn
-    #                     largest = s
-    #
-    #         if largestNN is None:
-    #             candidateList += [genRandomCand(network, node)]
-    #         else:
-    #             candidateList += [largestNN]
-    #
-    #         # if myCluster <= targetCluster:
-    #         #     #gather neighbors of neighbors that you are not connected to
-    #         #     #choose highest (this is greedy)
-    #         #     pass
-    #         # elif myCluster > targetCluster:
-    #         #     pass
-    #
-    # else:
-    #     candidateList += [genRandomCand(network, node)]
-    candidateList += [genRandomCand(network, node)]
-    candidateList += [genRandomCand(network, node)]
-    candidateList += [genRandomCand(network, node)]
-
-
-    return candidateList[0:candidateNumber]
-
-
-def genRandomCand(network, node):
-    # the second candidate will be random
+    #get node list to select from
     if node.inNetwork():
-        nodesToSelectFrom = network.disconnNodes + network.partConnNodes
+        nodes = network.disconnNodes + network.partConnNodes
     else:
-        nodesToSelectFrom = network.partConnNodes
+        nodes = network.partConnNodes
+    nodesToSelectFrom = []
+    for n in nodes:
+        if not n.isFull():
+            nodesToSelectFrom += [n]
 
+    #set number of candidates
+    numNodes = len(nodesToSelectFrom)
+    if numNodes - 1 < candidateNumber:
+        candNumber = numNodes - 1
+    else:
+        candNumber = candidateNumber
+
+    # generate candNumber unique candidates
+    candidateList = []
+    for i in range(0, candNumber):
+        cand = genRandomCand(nodesToSelectFrom, node)
+        while cand in candidateList:
+            cand = genRandomCand(nodesToSelectFrom, node)
+        candidateList += [cand]
+    return candidateList[0:candNumber]
+
+
+def genRandomCand(nodesToSelectFrom, node):
+    # the second candidate will be random
     r1 = random.randint(0, len(nodesToSelectFrom) - 1)
     randNode = nodesToSelectFrom[r1]
     while randNode == node:
@@ -258,7 +244,7 @@ def genRandomCand(network, node):
     return randNode
 
 
-def checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestChangesAnalysis, nodesInNewChannels, channelGenParams):
+def checkpointFunction(network, changeDict, currChanges, bestChanges, bestChangesAnalysis):
     """
     Checkpoint function judges the network by:
     1. making sure ALL nodes with channels are connected
@@ -272,14 +258,29 @@ def checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestCha
     """
     igraph = network.igraph
     nodes = network.fullConnNodes + network.partConnNodes
+    lst = []
+    for c in currChanges:
+        node1 = c.node1
+        node2 = c.node2
+        if changeDict[str(node1.nodeid)]:
+            if node1 not in lst:
+                nodes += [node1]
+                lst += [node1]
+        if changeDict[str(node2.nodeid)]:
+            if node2 not in lst:
+                nodes += [node2]
+                lst += [node2]
+
+
     numNodes = len(nodes)
     shortestPath = True
-    shortestPathsPerNode = 2
     betweenness = False
     connectivity = False
 
     if shortestPath:
-        sampleSize = 2
+        shortestPathsPerNode = 10
+        if shortestPathsPerNode >= len(nodes):
+            shortestPathsPerNode = len(nodes) - 1
         s = 0
         n = 0
         # numSample = utility.constructSample(10, (0, 1), full=True)  # random size 10 sequence of 0s and 1s
@@ -297,9 +298,15 @@ def checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestCha
 
             destlist = []
             for nodeid in nodeidSample:
-                if nodeid != nodeToUse.nodeid:
+                if nodeid != str(nodeToUse.nodeid):
                     destlist += [igraph.vs._name_index[nodeid]]
             source = [igraph.vs._name_index[str(nodeToUse.nodeid)]]
+
+            for i in range(0, len(destlist)):
+                for j in range(0, len(destlist)):
+                    if i != j and destlist[i] == destlist[j]:
+                        print("error")
+
             if destlist != []:
                 sp = igraph.shortest_paths(source, destlist)
                 for p in sp:
@@ -353,7 +360,7 @@ def checkpointFunction(network, targetNetwork, currChanges, bestChanges, bestCha
                 bestChangesAnalysis[2] = currAvgC
 
 
-    return channelGenParams, bestChanges.copy(), bestChangesAnalysis  #TODO do I need .copy() ?
+    return bestChanges.copy(), bestChangesAnalysis  #TODO do I need .copy() ?
 
 
 def nodeDistribution(network, finalNumChannels):

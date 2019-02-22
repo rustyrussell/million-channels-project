@@ -2,6 +2,7 @@ import bisect
 import powerLawReg
 from igraph import Graph
 from common import utility
+import igraph
 
 #classes
 
@@ -51,12 +52,11 @@ class Node:
     def setBitcoinCompPub(self, compPub):
         self.bitcoinCompPub = compPub
 
-
-
-    def addChannel(self, channel):
-        bisect.insort_left(self.channels, channel)
-        self.value += channel.value
+    def addChannel(self, channel, temp):
+        if not temp:
+            bisect.insort_left(self.channels, channel)
         self.channelCount += 1
+        self.value += channel.value
         p1 = channel.node1
         p2 = channel.node2
         if p1.nodeid == self.nodeid:
@@ -76,9 +76,10 @@ class Node:
     def setMaxChannels(self,num):
         self.maxChannels = num
 
-    def removeChannel(self, channel):
+    def removeChannel(self, channel, temp):
+        if not temp:
+            self.channels.remove(channel)
         self.channelCount -= 1
-        self.channels.remove(channel)
         self.value -= channel.value
         p1 = channel.node1
         p2 = channel.node2
@@ -180,31 +181,23 @@ class Channel:
         return self.channelid == otherChannel.channelid
 
 
-
-
-
 class Network:
     """
     Network class contains nodes and analysis on the network.
     """
-    def __init__(self, fullConnNodes, analysis):
+    def __init__(self, fullConnNodes):
         self.fullConnNodes = fullConnNodes
         self.channels = []
         self.igraph = self.makeiGraph(fullConnNodes)
         self.nodeNumber = len(fullConnNodes)
-        if analysis == True:
-            self.analysis = Analysis(self)
-        elif analysis == False:
-            self.analysis = None
-        else:
-            self.analysis = analysis
+        self.analysis = Analysis(self)
 
     def addChannels(self,channels):
         self.channels += channels
 
     def makeiGraph(self, nodes):
         nodes.sort(key=utility.sortByNodeId)
-        g = Graph()
+        g = Graph(directed=False)
         for n in nodes:
             g.add_vertex(str(n.nodeid))
         # for c in self.channels:
@@ -223,10 +216,12 @@ class Network:
         self.watcherId = watcherId
         self.watcherRPC = watcherRPC
 
+    def getConnNodes(self):
+        return self.fullConnNodes
 
 class IncompleteNetwork(Network):     # inherits Network class
     def __init__(self, fullConnNodes, disconnNodes, partConnNodes=None, unfullNodes=None, igraph=None):
-        Network.__init__(self, fullConnNodes, False)
+        Network.__init__(self, fullConnNodes)
         self.disconnNodes = disconnNodes
         self.unfullNodes = disconnNodes
         if partConnNodes == None:
@@ -247,7 +242,10 @@ class IncompleteNetwork(Network):     # inherits Network class
             else:
                 self.igraph = self.makeiGraph(fullConnNodes)
 
-    def createNewChannel(self, node1, node2):
+    def getConnNodes(self):
+        return self.fullConnNodes + self.partConnNodes
+
+    def createNewChannel(self, node1, node2, temp):
         """
         creates channel between node1 and node2. NOTE: this does not check if adding this channel breaks the maximum
         :param node1: node obj
@@ -255,85 +253,59 @@ class IncompleteNetwork(Network):     # inherits Network class
         :return: channel
         """
 
-
-        if node1.channelCount == 0:    # if disconnected
-            self.disconnNodes.remove(node1)
-            if node1.maxChannels == 1:
-                self.fullConnNodes += [node1]
-                self.unfullNodes.remove(node1)
-            else:
-                self.partConnNodes += [node1]
+        if node1.channelCount == 0:  # if disconnected
+            # if node1.maxChannels == 1:
+            #     pass
+            # else:
+            #     pass
             self.igraph.add_vertex(str(node1.nodeid))  # add to igraph
-        else:
-            if node1.channelCount == node1.maxChannels - 1:
-                self.fullConnNodes += [node1]
-                self.partConnNodes.remove(node1)
-                self.unfullNodes.remove(node1)
-            else:
-                pass    #it stays in partConnNodes
+            # else:
+            # if node1.channelCount == node1.maxChannels - 1:
+            #     pass
+            # else:
+            #     pass  # it stays in partConnNodes
         if node2.channelCount == 0:  # if disconnected
-            self.disconnNodes.remove(node2)
-            if node2.maxChannels == 1:
-                self.fullConnNodes += [node2]
-                self.unfullNodes.remove(node2)
-            else:
-                self.partConnNodes += [node2]
+            # if node2.maxChannels == 1:
+            #     pass
+            # else:
+            #     pass
             self.igraph.add_vertex(str(node2.nodeid))  # add to igraph
-        else:
-            if node2.channelCount == node2.maxChannels - 1:
-                self.fullConnNodes += [node2]
-                self.partConnNodes.remove(node2)
-                self.unfullNodes.remove(node2)
-            else:
-                pass  # it stays in partConnNodes
-
+            # else:
+            # if node2.channelCount == node2.maxChannels - 1:
+            #     pass
+            # else:
+            #     pass  # it stays in partConnNodes
 
         channel = Channel(node1, node2)
-        node1.addChannel(channel)
-        node2.addChannel(channel)
+        node1.addChannel(channel, temp)
+        node2.addChannel(channel, temp)
 
         self.igraph.add_edge(str(node1.nodeid), str(node2.nodeid))
 
+
         return channel
 
-    def removeChannel(self, channel):
+    def removeChannel(self, channel, temp):
         """
-        deletes channel
-        :param channel: channel
-        :return:
-        """
+           deletes channel
+           :param channel: channel
+           :return:
+           """
         node1 = channel.node1
         node2 = channel.node2
-        self.igraph.delete_edges([(str(node1.nodeid), str(node2.nodeid))])
-        if node1.maxChannels == 1:   # if full
-            self.fullConnNodes.remove(node1)
-            self.disconnNodes += [node1]
-            self.unfullNodes += [node1]
+        v1Gone = False
+        v2Gone = False
+        if node1.channelCount == 1:
             self.igraph.delete_vertices([str(node1.nodeid)])
-        elif node1.isFull():
-            self.fullConnNodes.remove(node1)
-            self.partConnNodes += [node1]
-            self.unfullNodes += [node1]
-        elif node1.channelCount == 1: # partial but will be disconnected
-            self.partConnNodes.remove(node1)
-            self.disconnNodes += [node1]
-            self.igraph.delete_vertices([str(node1.nodeid)])
-        if node2.maxChannels == 1:   # if full
-            self.fullConnNodes.remove(node2)
-            self.disconnNodes += [node2]
-            self.unfullNodes += [node2]
+            v1Gone = True
+        if node2.channelCount == 1:  # if full
             self.igraph.delete_vertices([str(node2.nodeid)])
-        elif node2.isFull():
-            self.fullConnNodes.remove(node2)
-            self.partConnNodes += [node2]
-            self.unfullNodes += [node2]
-        elif node2.channelCount == 1: # partial but will be disconnected
-            self.partConnNodes.remove(node2)
-            self.disconnNodes += [node2]
-            self.igraph.delete_vertices([str(node2.nodeid)])
-        node1.removeChannel(channel)
-        node2.removeChannel(channel)
+            v2Gone = True
+        if not v1Gone and not v2Gone:
+            self.igraph.delete_edges([(str(node1.nodeid), str(node2.nodeid))])
 
+        node1.removeChannel(channel, temp)
+        node2.removeChannel(channel, temp)
 
     def pushUnfull(self, node):
         self.unfullNodes.insert(0, node)
@@ -352,13 +324,19 @@ class Analysis:
     """
     def __init__(self, network):
         self.network = network
-        network.analysis = self.analyze()
 
     def analyze(self):
-        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.fullConnNodes, graph=False, completeNetwork=True)   #only fully connected nodes get analyzed
+        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=False, completeNetwork=True)   #only fully connected nodes get analyzed
         self.powerLaw = (params, covariance, x, yProb)
         # avgCluster, clusterDict, freqx, clustery, params, covariance = powerLawReg.cluster(self.network.fullConnNodes, graph=False, completeNetwork=True, bounds=(0, 1000, 1))
         # self.cluster = (clusterDict, freqx, clustery, params, covariance)
+
+    def betweenness(self):
+        igraph = self.network.igraph
+        bs = igraph.betweenness()
+        s = sum(bs)
+        avg = s/len(bs)
+        return avg
 
 
 class ChannelGenParams:
