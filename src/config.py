@@ -1,3 +1,5 @@
+import os
+
 """
 TODO: MANY OF THESE FEILDS SHOULD EVENTUALLY BE CONFIGURABLE ON STARTUP
 """
@@ -9,10 +11,9 @@ finalNumChannels = 1000
 randSeed = 1
 channelFileName = "../data/channels_1-18-18.json"
 networkSaveFile = "../data/" + networkName
-backtracksPerCheckpoint = 1
 candidateNumber = 3
-channelsPerRound = 5
-#cannot be changed by user:
+channelsPerRound = 4
+#shouldn't be changed by user:
 attempts = candidateNumber**channelsPerRound
 
 
@@ -31,12 +32,15 @@ bitcoinSrcDir =  ""             # ex "/home/jnetti/bitcoin/bitcoin/src/"
 bitcoinBaseDataDir = ""         # ex "/home/jnetti/.bitcoin/"
 bitcoinRegDataDir = bitcoinBaseDataDir + "regtest/"
 regtestConfPath = bitcoinBaseDataDir + "regtest.conf"
-#cannot be changed by user:
+#shouldn't be changed by user:
 defaultLightningPort = 9735
 lightningdDir = lightningDir + "lightningd/"
+lightningExpBaseDir = baseDataDir + currExperimentDir + experimentName
 lightningCliDir = lightningDir + "cli/"
+bitcoinCliPath = bitcoinSrcDir + "bitcoin-cli"
 defaultContractFunding = 10000  # satoshis
 defaultFeerate = 'normal'     # or perkw
+originalsrc = os.getcwd()
 
 
 def checkBuildNetworkFields():
