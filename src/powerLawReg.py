@@ -138,6 +138,17 @@ def inversePowLawFuncC(ys, a, b ,c):
         xs += [(c/y)**(1/a) - b]
     return xs
 
+def culmPowLawC(p, a, b, c):
+    #this is discrete rudimentary integration
+    ch = 1  #num of channels
+    s = 0
+    y = 0
+    while s < p:
+        s += y
+        y = powerLawFuncC([ch], a, b, c)[0]
+        ch += 1
+    return ch - 1
+
 def getChannelFreqData(nodes):
     """
     x axis is # of channels

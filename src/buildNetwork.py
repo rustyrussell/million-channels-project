@@ -8,7 +8,6 @@ import random
 from common import networkClasses
 from common import utility
 import powerLawReg
-#from graph import graph
 import pickle
 import time
 from config import *
@@ -44,12 +43,12 @@ def main():
     print("new betweenness (", str(t5-t4), ")", newbsAvg)
     g = utility.makeigraphTargetNetwork(nodes, channels)
     targetNetwork.igraph = g
+    from graph import graph
+    graph.graph_tool(newNetwork, str(finalNumChannels) + "2_22_4c_1r_portionofnodes")
     t6 = time.time()
     orgbsAvg = targetNetwork.analysis.betweenness()
     t7 = time.time()
     print("original betweenness (", str(t7-t6), ")", orgbsAvg)
-
-    #graph.graph_tool(newNetwork, str(finalNumChannels) + "network_2_21_shortestpath_~500_10can_1round<")
     f = open(networkSaveFile, "wb")
     pickle.dump(newNetwork, f)
 
@@ -71,6 +70,14 @@ def buildNetwork(targetNetwork, incompleteNetwork):
     :return: bestNetwork
     """
 
+    #analyze
+    maxChannelsSPPercent = .75 # selects for lower 50% of nodes
+    pl = targetNetwork.analysis.powerLaw
+    params = pl[0]
+    maxChannelsSP = powerLawReg.culmPowLawC(maxChannelsSPPercent, params[0], params[1], params[2])
+    print("maxChennelsSP", maxChannelsSP)
+    target = [maxChannelsSP]
+
     # connect first node to second node (to bootstrap network)
     incompleteNetwork.unfullNodes.sort(key=utility.channelMaxSortKey, reverse=False)
     node1 = incompleteNetwork.popUnfull()
@@ -79,29 +86,49 @@ def buildNetwork(targetNetwork, incompleteNetwork):
     incompleteNetwork.pushUnfull(node2)
     startingChannel = networkClasses.Channel(node1, node2)
     applyStateChanges(incompleteNetwork, [startingChannel])
+    flushNetwork(incompleteNetwork)
     incompleteNetwork.addChannels([startingChannel])
     currNetwork = incompleteNetwork
 
     j = 1
     k = 1
+    f = 1
     t100 = time.time()
     while len(currNetwork.unfullNodes) > 1:    #implicitly (totalChannels + channelsPerRound) <= finalNumChannels
-        t0 = time.time()
-        stateChanges, changeAnalysis, currChanges = roundRec(currNetwork, {}, [], [], [None,None,None], 0, 0)
-        t1 = time.time()
+    # while len(currNetwork.channels) <= finalNumChannels:
+        #t0 = time.time()
+        stateChanges, changeAnalysis, currChanges, bench = roundRec(currNetwork, target, {}, [], [], [None,None,None], 0, [])
+        #t1 = time.time()
         #print("bench roundRec:", t1-t0)
-        t2 = time.time()
+        #t2 = time.time()
         applyStateChanges(currNetwork, stateChanges)
-        t3 = time.time()
+
+        if f == 100:
+                t0 = time.time()
+                flushNetwork(currNetwork)
+                t1 = time.time()
+                print("flush", t1-t0)
+                f = 0
+        #t3 = time.time()
         #print("bench applyStateChanges:", t3-t2)
         #testing
+        if j == 6000:
+            print("why?")
+
         if j == 100:
             t100end = time.time()
             print("channel created:", k*100*channelsPerRound, t100end-t100)
+            #print("avg first half checkpoint bench:", sum(bench)/len(bench))
             k += 1
             j = 1
             t100 = time.time()
+            # if k % 100 == 1:
+                # print("stop")
+                # for n in currNetwork.disconnNodes:
+                #     if n.channelCount > n.maxChannels:
+                #         print("!!!fail")
         j += 1
+        f += 1
         #testing
 
     return currNetwork
@@ -124,6 +151,8 @@ def applyStateChanges(network, channels):
     for i in range(0, len(channels)):
         network.pushUnfull(network.popUnfull())
 
+
+def flushNetwork(network):
     network.partConnNodes = []
     network.disconnNodes = []
     newUnfull = []
@@ -139,9 +168,7 @@ def applyStateChanges(network, channels):
     network.unfullNodes = newUnfull
 
 
-
-
-def roundRec(network, changeDict, currChanges, bestChanges, bestChangesAnalysis, i, t):
+def roundRec(network, target, changeDict, currChanges, bestChanges, bestChangesAnalysis, i, bench):
     """
     Backtracks though every permutation (channelsPerRound^candidateNumber permutations)
     :param nodes:
@@ -157,35 +184,36 @@ def roundRec(network, changeDict, currChanges, bestChanges, bestChangesAnalysis,
     if len(nodes) > 0:
         currNode = network.popUnfull()    #pop from queue
         network.pushUnfull(currNode)
-        t0 = time.time()
+        #t0 = time.time()
         candidates = generateCandidates(network, currNode)
-        t1 = time.time()
+        #t1 = time.time()
         #print("bench generateCandidates", t1 - t0)
+
 
     if i == channelsPerRound or len(nodes) <= 1 or len(candidates) == 0:  # if rounds complete or no more unfull nodes or no candidates
         t0 = time.time()
-        bestChanges, bestChangesAnalysis = checkpointFunction(network, changeDict, currChanges, bestChanges, bestChangesAnalysis)
+        bestChanges, bestChangesAnalysis, bench = checkpointFunction(network, target, changeDict, currChanges, bestChanges, bestChangesAnalysis, bench)
         t1 = time.time()
         #print("bench checkpoint", t1-t0)
-        return bestChanges, bestChangesAnalysis, currChanges
+        return bestChanges, bestChangesAnalysis, currChanges, bench
 
     for c in range(0, len(candidates)):
         other = candidates[c]   #cand c
         addChangeDict(changeDict, currNode, other)  # must happen before add channel
-        t0 = time.time()
+        #t0 = time.time()
         channel = network.createNewChannel(currNode, other, temp=True)    # create temp channel (meaning don't add to nodes' channel lists)
-        t1 = time.time()
+        #t1 = time.time()
         #print("bench createNewChannel", t1 - t0)
         currChanges += [channel] # add channel to current changes
-        bestChanges, bestChangesAnalysis, currChanges = roundRec(network, changeDict, currChanges, bestChanges, bestChangesAnalysis, i+1, t)
+        bestChanges, bestChangesAnalysis, currChanges, bench = roundRec(network, target, changeDict, currChanges, bestChanges, bestChangesAnalysis, i+1, bench)
         currChanges = currChanges[0:-1] # delete the last change
-        t0 = time.time()
+        #t0 = time.time()
         network.removeChannel(channel, temp=True) # reverse previous temp channel add
-        t1 = time.time()
+        #t1 = time.time()
         #print("bench removeChannel", t1 - t0)
         removeChangeDict(changeDict, currNode, other) # must happen after remove channel
 
-    return bestChanges, bestChangesAnalysis, currChanges
+    return bestChanges, bestChangesAnalysis, currChanges, bench
 
 
 def addChangeDict(changeDict, currNode, other):
@@ -233,10 +261,10 @@ def generateCandidates(network, node):
     else:
         nodes = network.partConnNodes
     nodesToSelectFrom = []
-    # for n in nodes:  #instead of this, we allow full nodes to go through and then we check in the final for loop
-    #     if not n.isFull():
-    #         nodesToSelectFrom += [n]
-    nodesToSelectFrom = nodes
+    for n in nodes:  #instead of this, we allow full nodes to go through and then we check in the final for loop
+        if not n.isFull():
+            nodesToSelectFrom += [n]
+    # nodesToSelectFrom = nodes
 
     #set number of candidates
     numNodes = len(nodesToSelectFrom)
@@ -249,7 +277,11 @@ def generateCandidates(network, node):
     candidateList = []
     for i in range(0, candNumber):
         cand = genRandomCand(nodesToSelectFrom, node)
+        j = 0
         while cand in candidateList or cand.isFull():
+            if j == 20:
+                print("stop")
+            j += 1
             cand = genRandomCand(nodesToSelectFrom, node)
         candidateList += [cand]
     return candidateList[0:candNumber]
@@ -265,7 +297,7 @@ def genRandomCand(nodesToSelectFrom, node):
     return randNode
 
 
-def checkpointFunction(network, changeDict, currChanges, bestChanges, bestChangesAnalysis):
+def checkpointFunction(network, target, changeDict, currChanges, bestChanges, bestChangesAnalysis, bench):
     """
     Checkpoint function judges the network by:
     1. making sure ALL nodes with channels are connected
@@ -277,6 +309,9 @@ def checkpointFunction(network, changeDict, currChanges, bestChanges, bestChange
     :param analysis:
     :return:
     """
+    t0 = time.time()
+
+    maxChannelsSP = target[0]
     igraph = network.igraph
     nodes = network.fullConnNodes + network.partConnNodes
     lst = []
@@ -291,52 +326,59 @@ def checkpointFunction(network, changeDict, currChanges, bestChanges, bestChange
             if node2 not in lst:
                 nodes += [node2]
                 lst += [node2]
-
+    # t1 = time.time()
 
     numNodes = len(nodes)
-    shortestPath = True
-    betweenness = False
-    connectivity = False
 
-    if shortestPath:
-        shortestPathsPerNode = 10
+    shortestPathNodes = []
+    highlyConnNodes = []
+    for ch in currChanges:
+        # t0 = time.time()
+        node1 = ch.node1
+        node2 = ch.node2
+        if node1.maxChannels < maxChannelsSP:
+            shortestPathNodes += [igraph.vs._name_index[str(node1.nodeid)]]
+        else:
+            highlyConnNodes += [igraph.vs._name_index[str(node1.nodeid)]]
+        if node2.maxChannels < maxChannelsSP:
+            shortestPathNodes += [igraph.vs._name_index[str(node2.nodeid)]]
+        else:
+            highlyConnNodes += [igraph.vs._name_index[str(node1.nodeid)]]
+
+    if shortestPathNodes != []: #low nodes
+        source = shortestPathNodes
+        shortestPathsPerNode = 5
         if shortestPathsPerNode >= len(nodes):
             shortestPathsPerNode = len(nodes) - 1
         s = 0
         n = 0
         # numSample = utility.constructSample(10, (0, 1), full=True)  # random size 10 sequence of 0s and 1s
-        for ch in currChanges:
-            node1 = ch.node1
-            node2 = ch.node2
-            if node2.maxChannels < node1.maxChannels:
-                nodeToUse = node2
-            else:
-                nodeToUse = node1
-            numSample = utility.constructSample(shortestPathsPerNode, (0, numNodes - 1), full=True)
-            nodeidSample = utility.numSampleToNodeid(nodes, numSample)
-            # while nodeToUse.nodeid not in nodeidSample:  #TODO I can make this faster--for now it is good
-            #     nodeidSample = utility.numSampleToNodeid(nodes, numSample)
+        # t0 = time.time()
 
-            destlist = []
-            for nodeid in nodeidSample:
-                if nodeid != str(nodeToUse.nodeid):
-                    destlist += [igraph.vs._name_index[nodeid]]
-            source = [igraph.vs._name_index[str(nodeToUse.nodeid)]]
 
-            for i in range(0, len(destlist)):
-                for j in range(0, len(destlist)):
-                    if i != j and destlist[i] == destlist[j]:
-                        print("error")
+        numSample = utility.constructSample(shortestPathsPerNode, (0, numNodes - 1), full=True)
+        nodeidSample = utility.numSampleToNodeid(nodes, numSample)
+        # while nodeToUse.nodeid not in nodeidSample:  #TODO I can make this faster--for now it is good
+        #     nodeidSample = utility.numSampleToNodeid(nodes, numSample)
+
+        destlist = []
+        for nodeid in nodeidSample:
+            # if nodeid != str(nodeToUse.nodeid):
+            destlist += [igraph.vs._name_index[nodeid]]
+        # source = [igraph.vs._name_index[str(nodeToUse.nodeid)]]
+
+            #t1 = time.time()
 
             if destlist != []:
-                t0 = time.time()
-                sp = igraph.shortest_paths(source, destlist)
-                t1 = time.time()
-                print("bench shortest paths", t1-t0)
+                #t0 = time.time()
+                sp = igraph.shortest_paths_dijkstra(source, destlist)
+                #t1 = time.time()
+                #print("bench shortest paths", t1-t0)
                 for p in sp:
                     s += p[0]
                 n += len(destlist)
         newAvgS = s / n
+        # t1 = time.time()
 
         if bestChangesAnalysis[0] == None:
             bestChanges = currChanges
@@ -346,45 +388,50 @@ def checkpointFunction(network, changeDict, currChanges, bestChanges, bestChange
             if newAvgS < currAvgS:
                 bestChanges = currChanges
                 bestChangesAnalysis[0] = currAvgS
-
-    elif betweenness:
-        sampleSize = 30
-        numSample = utility.constructSample(sampleSize, (0, numNodes - 1), full=False)
-        nodeidSample = utility.numSampleToNodeid(nodes, numSample)
-        newbs = igraph.betweenness(nodeidSample)
-        newAvgB = sum(newbs) / sampleSize
-        #save changes
-        if bestChangesAnalysis[1] == None:
-            bestChanges = currChanges
-            bestChangesAnalysis[1] = newAvgB
-        else:
-            currAvgB = bestChangesAnalysis[1]
-            if newAvgB < currAvgB:
-                bestChanges = currChanges
-                bestChangesAnalysis[1] = newAvgB
-    elif connectivity:
-        sampleSize = 30
-        s = 0
-        for i in range(0, sampleSize): #TODO we might need a larger sample because a random highly connected node will skew the results up (this is a prob because we resample every time)
-            numSample = utility.constructSample(2, (0, numNodes - 1), full=True)
-            nodeidSample = utility.numSampleToNodeid(nodes, numSample)
-            i1 = igraph.vs.find(nodeidSample[0]).index
-            i2 = igraph.vs.find(nodeidSample[1]).index
-            cn = igraph.edge_connectivity(i1, i2)
-            s += cn
-        newAvgC = s/sampleSize
-
-        if bestChangesAnalysis[2] == None:
-            bestChanges = currChanges
-            bestChangesAnalysis[2] = newAvgC
-        else:
-            currAvgC = bestChangesAnalysis[2]
-            if newAvgC > currAvgC:
-                bestChanges = currChanges
-                bestChangesAnalysis[2] = currAvgC
+    elif highlyConnNodes != []:
+        bestChanges = currChanges
 
 
-    return bestChanges.copy(), bestChangesAnalysis  #TODO do I need .copy() ?
+
+    # elif betweenness:
+    #     sampleSize = 30
+    #     numSample = utility.constructSample(sampleSize, (0, numNodes - 1), full=False)
+    #     nodeidSample = utility.numSampleToNodeid(nodes, numSample)
+    #     newbs = igraph.betweenness(nodeidSample)
+    #     newAvgB = sum(newbs) / sampleSize
+    #     #save changes
+    #     if bestChangesAnalysis[1] == None:
+    #         bestChanges = currChanges
+    #         bestChangesAnalysis[1] = newAvgB
+    #     else:
+    #         currAvgB = bestChangesAnalysis[1]
+    #         if newAvgB < currAvgB:
+    #             bestChanges = currChanges
+    #             bestChangesAnalysis[1] = newAvgB
+    # elif connectivity:
+    #     sampleSize = 30
+    #     s = 0
+    #     for i in range(0, sampleSize): #TODO we might need a larger sample because a random highly connected node will skew the results up (this is a prob because we resample every time)
+    #         numSample = utility.constructSample(2, (0, numNodes - 1), full=True)
+    #         nodeidSample = utility.numSampleToNodeid(nodes, numSample)
+    #         i1 = igraph.vs.find(nodeidSample[0]).index
+    #         i2 = igraph.vs.find(nodeidSample[1]).index
+    #         cn = igraph.edge_connectivity(i1, i2)
+    #         s += cn
+    #     newAvgC = s/sampleSize
+    #
+    #     if bestChangesAnalysis[2] == None:
+    #         bestChanges = currChanges
+    #         bestChangesAnalysis[2] = newAvgC
+    #     else:
+    #         currAvgC = bestChangesAnalysis[2]
+    #         if newAvgC > currAvgC:
+    #             bestChanges = currChanges
+    #             bestChangesAnalysis[2] = currAvgC
+
+
+    t1 = time.time()
+    return bestChanges, bestChangesAnalysis, bench + [t1-t0] #TODO do I need .copy() ?
 
 
 def nodeDistribution(network, finalNumChannels):

@@ -59,18 +59,18 @@ class Node:
         self.value += channel.value
         p1 = channel.node1
         p2 = channel.node2
-        if p1.nodeid == self.nodeid:
-            if p1.nodeid not in self.neighborsDict:
-                self.neighbors += [p2]
-                self.neighborsDict[p2.nodeid] = 1
-            else:
-                self.neighborsDict[p2.nodeid] += 1
-        else:
-            if p1.nodeid not in self.neighborsDict:
-                self.neighbors += [p1]
-                self.neighborsDict[p1.nodeid] = 1
-            else:
-                self.neighborsDict[p1.nodeid] += 1
+        # if p1.nodeid == self.nodeid:
+        #     if p1.nodeid not in self.neighborsDict:
+        #         self.neighbors += [p2]
+        #         self.neighborsDict[p2.nodeid] = 1
+        #     else:
+        #         self.neighborsDict[p2.nodeid] += 1
+        # else:
+        #     if p1.nodeid not in self.neighborsDict:
+        #         self.neighbors += [p1]
+        #         self.neighborsDict[p1.nodeid] = 1
+        #     else:
+        #         self.neighborsDict[p1.nodeid] += 1
 
 
     def setMaxChannels(self,num):
@@ -81,24 +81,24 @@ class Node:
             self.channels.remove(channel)
         self.channelCount -= 1
         self.value -= channel.value
-        p1 = channel.node1
-        p2 = channel.node2
-        if p1.nodeid == self.nodeid:
-            if p2.nodeid in self.neighborsDict:
-                cs = self.neighborsDict[p2.nodeid]
-                if cs == 1:
-                    self.neighborsDict.pop(p2.nodeid)
-                    self.neighbors.remove(p2)
-                else:
-                    self.neighborsDict[p2.nodeid] -= 1
-        else:
-            if p1.nodeid in self.neighborsDict:
-                cs = self.neighborsDict[p1.nodeid]
-                if cs == 1:
-                    self.neighborsDict.pop(p1.nodeid)
-                    self.neighbors.remove(p1)
-                else:
-                    self.neighborsDict[p1.nodeid] -= 1
+        # p1 = channel.node1
+        # p2 = channel.node2
+        # if p1.nodeid == self.nodeid:
+        #     if p2.nodeid in self.neighborsDict:
+        #         cs = self.neighborsDict[p2.nodeid]
+        #         if cs == 1:
+        #             self.neighborsDict.pop(p2.nodeid)
+        #             self.neighbors.remove(p2)
+        #         else:
+        #             self.neighborsDict[p2.nodeid] -= 1
+        # else:
+        #     if p1.nodeid in self.neighborsDict:
+        #         cs = self.neighborsDict[p1.nodeid]
+        #         if cs == 1:
+        #             self.neighborsDict.pop(p1.nodeid)
+        #             self.neighbors.remove(p1)
+        #         else:
+        #             self.neighborsDict[p1.nodeid] -= 1
 
     def turnOn(self):
         self.on = True
@@ -254,34 +254,16 @@ class IncompleteNetwork(Network):     # inherits Network class
         """
 
         if node1.channelCount == 0:  # if disconnected
-            # if node1.maxChannels == 1:
-            #     pass
-            # else:
-            #     pass
             self.igraph.add_vertex(str(node1.nodeid))  # add to igraph
-            # else:
-            # if node1.channelCount == node1.maxChannels - 1:
-            #     pass
-            # else:
-            #     pass  # it stays in partConnNodes
+
         if node2.channelCount == 0:  # if disconnected
-            # if node2.maxChannels == 1:
-            #     pass
-            # else:
-            #     pass
             self.igraph.add_vertex(str(node2.nodeid))  # add to igraph
-            # else:
-            # if node2.channelCount == node2.maxChannels - 1:
-            #     pass
-            # else:
-            #     pass  # it stays in partConnNodes
 
         channel = Channel(node1, node2)
         node1.addChannel(channel, temp)
         node2.addChannel(channel, temp)
 
         self.igraph.add_edge(str(node1.nodeid), str(node2.nodeid))
-
 
         return channel
 
