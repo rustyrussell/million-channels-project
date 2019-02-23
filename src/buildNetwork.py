@@ -84,15 +84,23 @@ def buildNetwork(targetNetwork, incompleteNetwork):
 
     j = 1
     k = 1
+    t100 = time.time()
     while len(currNetwork.unfullNodes) > 1:    #implicitly (totalChannels + channelsPerRound) <= finalNumChannels
+        t0 = time.time()
         stateChanges, changeAnalysis, currChanges = roundRec(currNetwork, {}, [], [], [None,None,None], 0, 0)
+        t1 = time.time()
+        #print("bench roundRec:", t1-t0)
+        t2 = time.time()
         applyStateChanges(currNetwork, stateChanges)
-
+        t3 = time.time()
+        #print("bench applyStateChanges:", t3-t2)
         #testing
         if j == 100:
-            print("channel created:", k*100*channelsPerRound)
+            t100end = time.time()
+            print("channel created:", k*100*channelsPerRound, t100end-t100)
             k += 1
             j = 1
+            t100 = time.time()
         j += 1
         #testing
 
@@ -149,20 +157,32 @@ def roundRec(network, changeDict, currChanges, bestChanges, bestChangesAnalysis,
     if len(nodes) > 0:
         currNode = network.popUnfull()    #pop from queue
         network.pushUnfull(currNode)
+        t0 = time.time()
         candidates = generateCandidates(network, currNode)
+        t1 = time.time()
+        #print("bench generateCandidates", t1 - t0)
 
     if i == channelsPerRound or len(nodes) <= 1 or len(candidates) == 0:  # if rounds complete or no more unfull nodes or no candidates
+        t0 = time.time()
         bestChanges, bestChangesAnalysis = checkpointFunction(network, changeDict, currChanges, bestChanges, bestChangesAnalysis)
+        t1 = time.time()
+        #print("bench checkpoint", t1-t0)
         return bestChanges, bestChangesAnalysis, currChanges
 
     for c in range(0, len(candidates)):
         other = candidates[c]   #cand c
         addChangeDict(changeDict, currNode, other)  # must happen before add channel
+        t0 = time.time()
         channel = network.createNewChannel(currNode, other, temp=True)    # create temp channel (meaning don't add to nodes' channel lists)
+        t1 = time.time()
+        #print("bench createNewChannel", t1 - t0)
         currChanges += [channel] # add channel to current changes
         bestChanges, bestChangesAnalysis, currChanges = roundRec(network, changeDict, currChanges, bestChanges, bestChangesAnalysis, i+1, t)
         currChanges = currChanges[0:-1] # delete the last change
+        t0 = time.time()
         network.removeChannel(channel, temp=True) # reverse previous temp channel add
+        t1 = time.time()
+        #print("bench removeChannel", t1 - t0)
         removeChangeDict(changeDict, currNode, other) # must happen after remove channel
 
     return bestChanges, bestChangesAnalysis, currChanges
@@ -213,9 +233,10 @@ def generateCandidates(network, node):
     else:
         nodes = network.partConnNodes
     nodesToSelectFrom = []
-    for n in nodes:
-        if not n.isFull():
-            nodesToSelectFrom += [n]
+    # for n in nodes:  #instead of this, we allow full nodes to go through and then we check in the final for loop
+    #     if not n.isFull():
+    #         nodesToSelectFrom += [n]
+    nodesToSelectFrom = nodes
 
     #set number of candidates
     numNodes = len(nodesToSelectFrom)
@@ -228,7 +249,7 @@ def generateCandidates(network, node):
     candidateList = []
     for i in range(0, candNumber):
         cand = genRandomCand(nodesToSelectFrom, node)
-        while cand in candidateList:
+        while cand in candidateList or cand.isFull():
             cand = genRandomCand(nodesToSelectFrom, node)
         candidateList += [cand]
     return candidateList[0:candNumber]
@@ -308,7 +329,10 @@ def checkpointFunction(network, changeDict, currChanges, bestChanges, bestChange
                         print("error")
 
             if destlist != []:
+                t0 = time.time()
                 sp = igraph.shortest_paths(source, destlist)
+                t1 = time.time()
+                print("bench shortest paths", t1-t0)
                 for p in sp:
                     s += p[0]
                 n += len(destlist)
