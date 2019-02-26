@@ -70,39 +70,53 @@ def jsonToObject(jn):
                 pair = True
 
         if pair == False:
-            channelObj.setParty1(nodeObj1)
-            channelObj.setParty2(nodeObj2)
+            channelObj.node1(nodeObj1)
+            channelObj.node2(nodeObj2)
             nodeObj1.addChannel(channelObj)
             nodeObj2.addChannel(channelObj)
             bisect.insort_left(channels, channelObj)
 
-    return nodes, channels,
+    return nodes, channels
 
-def writeCompactNetwork(network, filename):
+def writeNetwork(network, filename):
     """
-    pickle write network to file
+    pickle write network to file.
+    Format: #ofNodes, nodes, #ofChannels, channels
     :param network:
     :return:
     """
     f = open(filename, "wb")
+    nodeNum = network.getNodeNum()
+    dump(nodeNum, f)
+    nodes = network.getNodes()
+    for n in range(0, nodeNum):
+        dump(nodes[n], f)
     dump(len(network.channels), f)   # num of channels
     for c in network.channels:
         dump(networkClasses.Chan(c), f)
 
-
-def makeigraphTargetNetwork(nodes, channels):
-    g = Graph(directed=False)
-
-    for n in nodes:
-        g.add_vertex(str(n.nodeid))
-
-    for ch in channels:
-        nodeid1 = ch.node1.nodeid
-        nodeid2 = ch.node2.nodeid
-        g.add_edge(nodeid1, nodeid2)
-
-    return g
-
+def loadNetwork(filename):
+    """
+    load network from file
+    :param filename: filename
+    :return: network
+    """
+    f = open(filename, "rb")
+    numNodes = load(f)
+    nodes = []
+    for i in range(0, numNodes):
+        nodes += [load(f)]
+    nodes.sort(key=sortByNodeId)
+    numChannels = load(f)
+    channels = []
+    for i in range(0, numChannels):
+        chan = load(f)
+        node1 = nodes[chan.node1id]
+        node2 = nodes[chan.node2id]
+        channel = networkClasses.Channel(node1, node2)
+        channels += [channel]
+    network = networkClasses.Network(nodes, channels)
+    return network
 
 def setRandSeed(s):
     """

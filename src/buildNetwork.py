@@ -31,8 +31,6 @@ def main():
     network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     t2 = time.time()
     buildNetworkFast(network)
-    # for v in ig.vs:
-    #     print(v)
     t3 = time.time()
     print("buildNetworkFast", t3-t2)
     utility.writeCompactNetwork(network, channelSaveFile)
@@ -51,7 +49,6 @@ def buildNetworkFast(network):
     nodeidSortedNodes = network.unfullNodes.copy()
     nodeidSortedNodes.sort(key=utility.sortByNodeId)
     nodesLeft = nodeidSortedNodes.copy()
-    channels = []
     ig = network.igraph
     ig.add_vertices(len(nodes))
     es = []
@@ -88,10 +85,8 @@ def buildNetworkFast(network):
                     j = 0
                 j += 1
             channel = network.createNewChannel(node, nodeToConnect)
-            network.channels += [channel]
             usedLst[node.nodeid] += [nodeToConnectId]
             usedLst[nodeToConnectId] += [node.nodeid]
-            channels += [channel]
             es += [(node.nodeid, nodeToConnectId)]
         print("done with", n)
         n += 1

@@ -1,8 +1,6 @@
-import bisect
 import powerLawReg
 from igraph import Graph
 from common import utility
-import igraph
 
 #classes
 
@@ -10,30 +8,11 @@ class Node:
     """
     Node class
     """
-    def __init__(self, nodeid, channels=None, maxChannels=None):
+    def __init__(self, nodeid, maxChannels=None):
         self.setHasKeys(False)
-        if channels == None:
-            self.channels = []
-            self.value = 0
-            self.channelCount = 0
-            self.neighbors = []
-            self.neighborsDict = dict()
-            self.realChannelCount = 0
-            self.addrList = []
-        else:
-            self.channels = channels
-            self.neighbors = []
-            for channel in channels:
-                self.value += channel.value
-                p1 = channel.party1
-                p2 = channel.party2
-                if p1 != self:
-                    if p1 not in self.neighbors:
-                        self.neighbors += [p1]
-                else:
-                    if p2 not in self.neighbors:
-                        self.neighbors += [p2]
-            self.channelCount = len(channels)
+        self.value = 0
+        self.channelCount = 0
+        self.addrList = []
         self.nodeid = nodeid
         self.maxChannels = maxChannels
 
@@ -63,37 +42,11 @@ class Node:
         self.channelCount -= 1
         self.value -= channel.value
 
-    def addToRealChannelCount(self):
-        self.realChannelCount += 1
-
-    def setRPC(self, rpc):
-        self.rpc = rpc
-
-    def setId(self, id):
-        self.id = id
-
-    def addToAddrList(self, addr):
-        self.addrList += [addr]
-
     def inNetwork(self):
-        return len(self.channels) > 0
+        return self.channelCount > 0
 
     def isFull(self):
         return self.channelCount >= self.maxChannels
-
-    def setDataDir(self, dataDir):
-        self.dataDir = dataDir
-
-    def setpid(self):
-        fp = open(self.dataDir + "lightningd-regtest.pid", "r")
-        pid = ""
-        for line in fp:
-            pid = line
-            break
-        self.pid = pid
-
-    def setIP(self, ip):
-        self.ip = ip
 
     def __lt__(self, otherNode):
         return self.nodeid < otherNode.nodeid
@@ -103,8 +56,6 @@ class Node:
 
     def __eq__(self, otherNode):
         return self.nodeid == otherNode.nodeid
-
-
 
 class Channel:
     """
@@ -121,10 +72,10 @@ class Channel:
             self.value = 1
             self.channelid = str(self.node1.nodeid) + str(self.node2.nodeid)
 
-    def setParty1(self, node1):
+    def setNode1(self, node1):
         self.node1 = node1
 
-    def setParty2(self, node2):
+    def setNode2(self, node2):
         self.node2 = node2
 
     def __lt__(self, otherChannel):
@@ -147,27 +98,70 @@ class Network:
     """
     Network class contains nodes and analysis on the network.
     """
-    def __init__(self, fullConnNodes):
+
+    def __init__(self, fullConnNodes, channels=None):
+        """
+        Create a network where the nodes do not have the channels passed in
+        :param fullConnNodes:
+        :param channels:
+        """
         self.fullConnNodes = fullConnNodes
-        self.channels = []
-        self.igraph = self.makeiGraph(fullConnNodes)
         self.nodeNumber = len(fullConnNodes)
         self.analysis = Analysis(self)
+        if channels is not None:
+            self.channels = channels
+        else:
+            self.channels = []
+        self.makeiGraph()
 
     def addChannels(self,channels):
         self.channels += channels
 
-    def makeiGraph(self, nodes):
-        nodes.sort(key=utility.sortByNodeId)
-        g = Graph(directed=False)
-        for n in nodes:
-            g.add_vertex(str(n.nodeid))
-        # for c in self.channels:
-        #     g.add_edge(c.node1.nodeid, c.node2.nodeid)
-        return g
+    def makeiGraph(self):
+        if self.fullConnNodes != None:
+            self.fullConnNodes.sort(key=utility.sortByNodeId)
+            g = Graph(directed=False)
+            g.add_vertices(len(self.fullConnNodes))
+            es = []
+            for ch in self.channels:
+                es += [(ch.node1.nodeid, ch.node2.nodeid)]
+            if es != []:
+                g.add_edges(es)
+            self.igraph = g
 
     def getConnNodes(self):
         return self.fullConnNodes
+
+    def getNodeNum(self):
+        return len(self.getNodes())
+
+    def getNodes(self):
+        return self.fullConnNodes
+
+    def createNewChannel(self, node1, node2):
+        """
+        creates channel between node1 and node2. NOTE: this does not check if adding this channel breaks the maximum
+        :param node1: node obj
+        :param node2: node obj
+        :return: channel
+        """
+        channel = Channel(node1, node2)
+        node1.addChannel(channel)
+        node2.addChannel(channel)
+        self.channels += [channel]
+
+        return channel
+
+    def removeChannel(self, channel):
+        """
+           deletes channel
+           :param channel: channel
+           :return:
+           """
+        node1 = channel.node1
+        node2 = channel.node2
+        node1.removeChannel(channel)
+        node2.removeChannel(channel)
 
 class IncompleteNetwork(Network):     # inherits Network class
     def __init__(self, fullConnNodes, disconnNodes, partConnNodes=None, unfullNodes=None, igraph=None):
@@ -184,40 +178,14 @@ class IncompleteNetwork(Network):     # inherits Network class
         if unfullNodes != None:
             self.unfullNodes = unfullNodes
 
-        if igraph != None:
-            self.igraph = igraph
-        else:
-            if partConnNodes != None:
-                self.igraph = self.makeiGraph(fullConnNodes + partConnNodes)
-            else:
-                self.igraph = self.makeiGraph(fullConnNodes)
-
     def getConnNodes(self):
         return self.fullConnNodes + self.partConnNodes
 
-    def createNewChannel(self, node1, node2):
-        """
-        creates channel between node1 and node2. NOTE: this does not check if adding this channel breaks the maximum
-        :param node1: node obj
-        :param node2: node obj
-        :return: channel
-        """
-        channel = Channel(node1, node2)
-        node1.addChannel(channel)
-        node2.addChannel(channel)
+    def getNodeNum(self):
+        return self.getNodes()
 
-        return channel
-
-    def removeChannel(self, channel):
-        """
-           deletes channel
-           :param channel: channel
-           :return:
-           """
-        node1 = channel.node1
-        node2 = channel.node2
-        node1.removeChannel(channel)
-        node2.removeChannel(channel)
+    def getNodes(self):
+        return self.fullConnNodes + self.partConnNodes + self.disconnNodes
 
 
 class Analysis:
