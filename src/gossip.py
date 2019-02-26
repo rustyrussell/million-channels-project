@@ -34,7 +34,7 @@ GOSSIP_CHANNEL_UPDATE = "update"
 def main():
     utility.setRandSeed(0)
     SelectParams("regtest")
-    network = utility.loadNetwork(networkSaveFile)
+    network = utility.loadNetwork(channelSaveFile)
     makeAllPrivPubKeys(network)
     filename = "gossip_store"
     initGossip_store(filename)

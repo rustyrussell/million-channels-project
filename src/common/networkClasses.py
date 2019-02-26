@@ -52,60 +52,16 @@ class Node:
     def setBitcoinCompPub(self, compPub):
         self.bitcoinCompPub = compPub
 
-    def addChannel(self, channel, temp):
-        # if not temp:
-        #     bisect.insort_left(self.channels, channel)
+    def addChannel(self, channel):
         self.channelCount += 1
-        # self.value += channel.value
-        # p1 = channel.node1
-        # p2 = channel.node2
-        # if p1.nodeid == self.nodeid:
-        #     if p1.nodeid not in self.neighborsDict:
-        #         self.neighbors += [p2]
-        #         self.neighborsDict[p2.nodeid] = 1
-        #     else:
-        #         self.neighborsDict[p2.nodeid] += 1
-        # else:
-        #     if p1.nodeid not in self.neighborsDict:
-        #         self.neighbors += [p1]
-        #         self.neighborsDict[p1.nodeid] = 1
-        #     else:
-        #         self.neighborsDict[p1.nodeid] += 1
-
+        self.value += channel.value
 
     def setMaxChannels(self,num):
         self.maxChannels = num
 
-    def removeChannel(self, channel, temp):
-        # if not temp:
-        #     self.channels.remove(channel)
+    def removeChannel(self, channel):
         self.channelCount -= 1
-        # self.value -= channel.value
-        # p1 = channel.node1
-        # p2 = channel.node2
-        # if p1.nodeid == self.nodeid:
-        #     if p2.nodeid in self.neighborsDict:
-        #         cs = self.neighborsDict[p2.nodeid]
-        #         if cs == 1:
-        #             self.neighborsDict.pop(p2.nodeid)
-        #             self.neighbors.remove(p2)
-        #         else:
-        #             self.neighborsDict[p2.nodeid] -= 1
-        # else:
-        #     if p1.nodeid in self.neighborsDict:
-        #         cs = self.neighborsDict[p1.nodeid]
-        #         if cs == 1:
-        #             self.neighborsDict.pop(p1.nodeid)
-        #             self.neighbors.remove(p1)
-        #         else:
-        #             self.neighborsDict[p1.nodeid] -= 1
-
-    def turnOn(self):
-        self.on = True
-
-    def turnOff(self):
-        self.on = False
-        self.realChannelCount = 0
+        self.value -= channel.value
 
     def addToRealChannelCount(self):
         self.realChannelCount += 1
@@ -209,18 +165,6 @@ class Network:
         # for c in self.channels:
         #     g.add_edge(c.node1.nodeid, c.node2.nodeid)
         return g
-    def setBaseDataDir(self, dir):
-        self.baseDataDir = dir
-
-    def turnOn(self):
-        self.on = True
-
-    def turnOff(self):
-        self.on = False
-
-    def setWatcher(self, watcherId, watcherRPC):
-        self.watcherId = watcherId
-        self.watcherRPC = watcherRPC
 
     def getConnNodes(self):
         return self.fullConnNodes
@@ -251,29 +195,20 @@ class IncompleteNetwork(Network):     # inherits Network class
     def getConnNodes(self):
         return self.fullConnNodes + self.partConnNodes
 
-    def createNewChannel(self, node1, node2, temp):
+    def createNewChannel(self, node1, node2):
         """
         creates channel between node1 and node2. NOTE: this does not check if adding this channel breaks the maximum
         :param node1: node obj
         :param node2: node obj
         :return: channel
         """
-
-        # if node1.channelCount == 0:  # if disconnected
-        #     self.igraph.add_vertex(str(node1.nodeid))  # add to igraph
-        #
-        # if node2.channelCount == 0:  # if disconnected
-        #     self.igraph.add_vertex(str(node2.nodeid))  # add to igraph
-
         channel = Channel(node1, node2)
-        node1.addChannel(channel, temp)
-        node2.addChannel(channel, temp)
-
-        # self.igraph.add_edge(str(node1.nodeid), str(node2.nodeid))
+        node1.addChannel(channel)
+        node2.addChannel(channel)
 
         return channel
 
-    def removeChannel(self, channel, temp):
+    def removeChannel(self, channel):
         """
            deletes channel
            :param channel: channel
@@ -281,29 +216,8 @@ class IncompleteNetwork(Network):     # inherits Network class
            """
         node1 = channel.node1
         node2 = channel.node2
-        # v1Gone = False
-        # v2Gone = False
-        # if node1.channelCount == 1:
-        #     self.igraph.delete_vertices([str(node1.nodeid)])
-        #     v1Gone = True
-        # if node2.channelCount == 1:  # if full
-        #     self.igraph.delete_vertices([str(node2.nodeid)])
-        #     v2Gone = True
-        # if not v1Gone and not v2Gone:
-        #     self.igraph.delete_edges([(str(node1.nodeid), str(node2.nodeid))])
-
-        node1.removeChannel(channel, temp)
-        node2.removeChannel(channel, temp)
-
-    def pushUnfull(self, node):
-        self.unfullNodes.insert(0, node)
-
-    def popUnfull(self):
-        n = self.unfullNodes[-1]
-        self.unfullNodes = self.unfullNodes[0:-1]
-        return n
-
-
+        node1.removeChannel(channel)
+        node2.removeChannel(channel)
 
 
 class Analysis:

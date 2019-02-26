@@ -4,7 +4,7 @@ import json
 from common import networkClasses
 from random import seed, randint
 import copy
-from pickle import load
+from pickle import load, dump
 from igraph import Graph
 
 # helper functions
@@ -41,7 +41,6 @@ def jsonToObject(jn):
     channels = []
     nodes = []
     for i in range(0, len(channelsJson)):
-        #print("channel " + str(i))
         currChannel = channelsJson[i]
         nodeid1 = channelsJson[i]["source"]
         nodeid2 = channelsJson[i]["destination"]
@@ -73,11 +72,22 @@ def jsonToObject(jn):
         if pair == False:
             channelObj.setParty1(nodeObj1)
             channelObj.setParty2(nodeObj2)
-            nodeObj1.addChannel(channelObj, temp=False)
-            nodeObj2.addChannel(channelObj, temp=False)
+            nodeObj1.addChannel(channelObj)
+            nodeObj2.addChannel(channelObj)
             bisect.insort_left(channels, channelObj)
 
     return nodes, channels,
+
+def writeCompactNetwork(network, filename):
+    """
+    pickle write network to file
+    :param network:
+    :return:
+    """
+    f = open(filename, "wb")
+    dump(len(network.channels), f)   # num of channels
+    for c in network.channels:
+        dump(networkClasses.Chan(c), f)
 
 
 def makeigraphTargetNetwork(nodes, channels):
@@ -103,7 +113,6 @@ def setRandSeed(s):
     seed(s)
 
 
-
 def channelMaxSortKey(node):
     """
     Use in .sort() when you want to sort a list of channels by channelCount
@@ -121,71 +130,10 @@ def sortByNodeId(node):
     return node.nodeid
 
 
-
-def constructSample(sampleSize, bounds, full):
-    """
-    Construct num sample. if full is True, then we make sampleSize elements. If it is false, we don't force the size.
-    This distinction is useful for some applications.
-    TODO: consider binary search for checking for duplicates
-    :param sampleSize: sample size num
-    :param bounds: bounds of generated number
-    :param full: bool
-    :param list of nums to avoid
-    :return:
-    """
-
-    sample = []
-    if full:
-        while len(sample) < sampleSize:
-            r = randint(bounds[0], bounds[1])  # note: range is inclusive
-            if r not in sample:
-                sample += [r]
-    else:
-        for i in range(0, sampleSize):
-            r = randint(bounds[0], bounds[1])   #note: range is inclusive
-            if r not in sample:
-                sample += [r]
-    return sample
-
-def numSampleToNodeid(nodes, numSample):
-    nodeidSample = []
-    nodeSample = []
-    for num in numSample:
-        nodeid = str(nodes[num].nodeid)
-        nodeidSample += [nodeid]
-        nodeSample += nodes[num]
-    return nodeidSample, nodeSample
-
-
-def splitArray(arr, split):
-    """
-    This is how we efficiently remove nodes from lists
-    :param arr: original arr
-    :param split: array of indexs to remove
-    :return:
-    """
-    newArr = []
-    split.sort()
-    prev = 0
-    for i in range(len(split)):
-        index = split[i]
-        if index == prev:
-            continue
-        else:
-            newArr += arr[prev:index]
-            prev = index + 1
-
-
 def loadNetwork(networkFilename):
     fp = open(networkFilename, "rb")
     network = load(fp)
     return network
 
-
-def duplicateIncompleteNetwork(network):
-    return networkClasses.IncompleteNetwork(fullConnNodes=copy.deepcopy(network.fullConnNodes),
-                                            disconnNodes=copy.deepcopy(network.disconnNodes),
-                                            partConnNodes=copy.deepcopy(network.partConnNodes),
-                                            unfullNodes=copy.deepcopy(network.unfullNodes))
 
 
