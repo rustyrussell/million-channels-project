@@ -149,10 +149,32 @@ def constructSample(sampleSize, bounds, full):
 
 def numSampleToNodeid(nodes, numSample):
     nodeidSample = []
+    nodeSample = []
     for num in numSample:
         nodeid = str(nodes[num].nodeid)
         nodeidSample += [nodeid]
-    return nodeidSample
+        nodeSample += nodes[num]
+    return nodeidSample, nodeSample
+
+
+def splitArray(arr, split):
+    """
+    This is how we efficiently remove nodes from lists
+    :param arr: original arr
+    :param split: array of indexs to remove
+    :return:
+    """
+    newArr = []
+    split.sort()
+    prev = 0
+    for i in range(len(split)):
+        index = split[i]
+        if index == prev:
+            continue
+        else:
+            newArr += arr[prev:index]
+            prev = index + 1
+
 
 def loadNetwork(networkFilename):
     fp = open(networkFilename, "rb")

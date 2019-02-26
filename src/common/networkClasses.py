@@ -53,12 +53,12 @@ class Node:
         self.bitcoinCompPub = compPub
 
     def addChannel(self, channel, temp):
-        if not temp:
-            bisect.insort_left(self.channels, channel)
+        # if not temp:
+        #     bisect.insort_left(self.channels, channel)
         self.channelCount += 1
-        self.value += channel.value
-        p1 = channel.node1
-        p2 = channel.node2
+        # self.value += channel.value
+        # p1 = channel.node1
+        # p2 = channel.node2
         # if p1.nodeid == self.nodeid:
         #     if p1.nodeid not in self.neighborsDict:
         #         self.neighbors += [p2]
@@ -77,10 +77,10 @@ class Node:
         self.maxChannels = num
 
     def removeChannel(self, channel, temp):
-        if not temp:
-            self.channels.remove(channel)
+        # if not temp:
+        #     self.channels.remove(channel)
         self.channelCount -= 1
-        self.value -= channel.value
+        # self.value -= channel.value
         # p1 = channel.node1
         # p2 = channel.node2
         # if p1.nodeid == self.nodeid:
@@ -181,6 +181,12 @@ class Channel:
         return self.channelid == otherChannel.channelid
 
 
+class Chan:
+    def __init__(self, channel):
+        self.node1id = channel.node1.nodeid
+        self.node2id = channel.node2.nodeid
+
+
 class Network:
     """
     Network class contains nodes and analysis on the network.
@@ -253,17 +259,17 @@ class IncompleteNetwork(Network):     # inherits Network class
         :return: channel
         """
 
-        if node1.channelCount == 0:  # if disconnected
-            self.igraph.add_vertex(str(node1.nodeid))  # add to igraph
-
-        if node2.channelCount == 0:  # if disconnected
-            self.igraph.add_vertex(str(node2.nodeid))  # add to igraph
+        # if node1.channelCount == 0:  # if disconnected
+        #     self.igraph.add_vertex(str(node1.nodeid))  # add to igraph
+        #
+        # if node2.channelCount == 0:  # if disconnected
+        #     self.igraph.add_vertex(str(node2.nodeid))  # add to igraph
 
         channel = Channel(node1, node2)
         node1.addChannel(channel, temp)
         node2.addChannel(channel, temp)
 
-        self.igraph.add_edge(str(node1.nodeid), str(node2.nodeid))
+        # self.igraph.add_edge(str(node1.nodeid), str(node2.nodeid))
 
         return channel
 
@@ -275,16 +281,16 @@ class IncompleteNetwork(Network):     # inherits Network class
            """
         node1 = channel.node1
         node2 = channel.node2
-        v1Gone = False
-        v2Gone = False
-        if node1.channelCount == 1:
-            self.igraph.delete_vertices([str(node1.nodeid)])
-            v1Gone = True
-        if node2.channelCount == 1:  # if full
-            self.igraph.delete_vertices([str(node2.nodeid)])
-            v2Gone = True
-        if not v1Gone and not v2Gone:
-            self.igraph.delete_edges([(str(node1.nodeid), str(node2.nodeid))])
+        # v1Gone = False
+        # v2Gone = False
+        # if node1.channelCount == 1:
+        #     self.igraph.delete_vertices([str(node1.nodeid)])
+        #     v1Gone = True
+        # if node2.channelCount == 1:  # if full
+        #     self.igraph.delete_vertices([str(node2.nodeid)])
+        #     v2Gone = True
+        # if not v1Gone and not v2Gone:
+        #     self.igraph.delete_edges([(str(node1.nodeid), str(node2.nodeid))])
 
         node1.removeChannel(channel, temp)
         node2.removeChannel(channel, temp)

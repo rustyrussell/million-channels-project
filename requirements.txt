@@ -5,3 +5,4 @@ sortedcontainers
 matplotlib
 scipy
 python-igraph
+pycairo
