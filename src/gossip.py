@@ -100,7 +100,8 @@ def makeAllPrivPubKeys(nodes):
                 i = 0
             else:
                 i += 1
-            nodeCPrivObj = makeSinglePrivKeyNodeId(node.nodeid)
+            nodeCPrivObj = makeSinglePrivKeyNodeId(node.nodeid + 1)  # there can never be a 0 private key in ecdsa
+            #nodeCPrivObj = makeSinglePrivKey()
             node.setNodeCPrivObj(nodeCPrivObj)
             nodePub = compPubKey(nodeCPrivObj)
             node.setNodeCompPub(nodePub)
@@ -112,8 +113,8 @@ def makeAllPrivPubKeys(nodes):
 
 
 def makeSinglePrivKeyNodeId(nodeid):
-    privBits = nodeid.to_bytes(32, "big").hex()
-    wifPriv = wif.privToWif(privBits)
+    privBits = nodeid.to_bytes(32, "big")
+    wifPriv = wif.privToWif(privBits.hex())
     cPrivObj = CBitcoinSecret(wifPriv)
     return cPrivObj
 
@@ -433,8 +434,19 @@ class ChannelAnnouncement():
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
 
-
+def testSigning(num):
+    SelectParams("regtest")
+    k = makeSinglePrivKeyNodeId(num)
+    m = "message"
+    h = hashlib.sha256(m.encode()).digest()
+    sig = sign(k, h)
+    import bitcoin.signmessage as signmessage
+    # signmessage.VerifyMessage(sig,m,)
+    # r =
+    return
 
 main()
+#
 
+# testSigning(n)
 

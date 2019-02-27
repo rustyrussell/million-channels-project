@@ -64,6 +64,8 @@ def buildNetworkFast(network):
             if len(nodesLeft) - 1 == 0:
                 done = True
                 break
+            if len(usedLst[node.nodeid]) == (len(nodesLeft) - 1):  #if all nodes left are already connected to, go to the next node
+                break
             r = random.randint(0, len(nodesLeft)-1)
             nodeToConnect = nodesLeft[r]
             nodeToConnectId = nodeToConnect.nodeid
