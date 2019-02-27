@@ -70,52 +70,62 @@ def jsonToObject(jn):
                 pair = True
 
         if pair == False:
-            channelObj.node1(nodeObj1)
-            channelObj.node2(nodeObj2)
+            channelObj.setNode1(nodeObj1)
+            channelObj.setNode2(nodeObj2)
             nodeObj1.addChannel(channelObj)
             nodeObj2.addChannel(channelObj)
+            bisect.insort_left(nodeObj1.channels, channelObj)
+            bisect.insort_left(nodeObj2.channels, channelObj)
             bisect.insort_left(channels, channelObj)
 
     return nodes, channels
 
-def writeNetwork(network, filename):
+def writeNetwork(network, nodeSaveFile, channelSaveFile):
     """
     pickle write network to file.
     Format: #ofNodes, nodes, #ofChannels, channels
     :param network:
     :return:
     """
-    f = open(filename, "wb")
+    f1 = open(nodeSaveFile, "wb")
     nodeNum = network.getNodeNum()
-    dump(nodeNum, f)
+    dump(nodeNum, f1)
     nodes = network.getNodes()
     for n in range(0, nodeNum):
-        dump(nodes[n], f)
-    dump(len(network.channels), f)   # num of channels
-    for c in network.channels:
-        dump(networkClasses.Chan(c), f)
+        dump(nodes[n], f1)
+    f1.close()
 
-def loadNetwork(filename):
+    f2 = open(channelSaveFile, "wb")
+    dump(len(network.channels), f2)   # num of channels
+    for c in network.channels:
+        dump(networkClasses.Chan(c), f2)
+    f2.close()
+
+def loadNetwork(nodeSaveFile, channelSaveFile):
     """
     load network from file
     :param filename: filename
     :return: network
     """
-    f = open(filename, "rb")
-    numNodes = load(f)
+    f1 = open(nodeSaveFile, "rb")
+    numNodes = load(f1)
     nodes = []
     for i in range(0, numNodes):
-        nodes += [load(f)]
+        nodes += [load(f1)]
     nodes.sort(key=sortByNodeId)
-    numChannels = load(f)
+    f1.close()
+
+    f2 = open(channelSaveFile, "rb")
+    numChannels = load(f2)
     channels = []
     for i in range(0, numChannels):
-        chan = load(f)
+        chan = load(f2)
         node1 = nodes[chan.node1id]
         node2 = nodes[chan.node2id]
         channel = networkClasses.Channel(node1, node2)
         channels += [channel]
     network = networkClasses.Network(nodes, channels)
+    f2.close()
     return network
 
 def setRandSeed(s):
@@ -142,12 +152,5 @@ def sortByChannelCount(node):
 
 def sortByNodeId(node):
     return node.nodeid
-
-
-def loadNetwork(networkFilename):
-    fp = open(networkFilename, "rb")
-    network = load(fp)
-    return network
-
 
 

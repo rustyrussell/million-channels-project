@@ -5,7 +5,7 @@ import common.wif as wif
 from bitcoin.wallet import CBitcoinSecret, P2PKHBitcoinAddress
 from bitcoin import SelectParams
 import hashlib
-import lightning
+import time
 from copy import deepcopy
 
 chainHash = bytearray.fromhex('06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f')
@@ -34,11 +34,21 @@ GOSSIP_CHANNEL_UPDATE = "update"
 def main():
     utility.setRandSeed(0)
     SelectParams("regtest")
-    network = utility.loadNetwork(channelSaveFile)
-    makeAllPrivPubKeys(network)
-    filename = "gossip_store"
-    initGossip_store(filename)
-    generateAllGossip(network, filename)
+    t0 = time.time()
+    network = utility.loadNetwork(nodeSaveFile, channelSaveFile)
+    t1 = time.time()
+    print("loading network complete", t1-t0)
+    t2 = time.time()
+    makeAllPrivPubKeys(network.getNodes())
+    t3 = time.time()
+    print("key creation complete", t3-t2)
+    t4 = time.time()
+    initGossip_store(gossipSaveFile)
+    generateAllGossip(network, gossipSaveFile)
+    t5 = time.time()
+    print("generating/writing gossip complete", t5-t4)
+
+    print("program complete", t5-t0)
 
 
 def generateAllGossip(network, filename):
@@ -50,12 +60,15 @@ def generateAllGossip(network, filename):
     timestamp = initialTimestamp
     scid = initialscid
     i = 0
+    j = 1
     for ch in channels:
-        # #
-        # if i == 10:  # TODO: this is for testing
-        #     break
-        # i += 1
-        # #
+        if i == 1000:
+            print(str(1000*j), "gossip created")
+            j += 1
+            i = 0
+        else:
+            i += 1
+
         timestamp += 1
         btimestamp = bytearray(timestamp.to_bytes(4, byteorder="big"))
         a = createChannelAnnouncement(ch,scid)
@@ -71,15 +84,23 @@ def generateAllGossip(network, filename):
 
 
 #keys
-def makeAllPrivPubKeys(network):
+def makeAllPrivPubKeys(nodes):
     """
     make private and public keypair for every node in the network
     :param network: network
     """
-    nodes = network.fullConnNodes + network.partConnNodes
+
+    i = 0
+    j = 1
     for node in nodes:
         if not node.hasKeys:
-            nodeCPrivObj = makeSinglePrivKey()
+            if i == 1000:
+                print(str(1000 * j), "keys created")
+                j += 1
+                i = 0
+            else:
+                i += 1
+            nodeCPrivObj = makeSinglePrivKeyNodeId(node.nodeid)
             node.setNodeCPrivObj(nodeCPrivObj)
             nodePub = compPubKey(nodeCPrivObj)
             node.setNodeCompPub(nodePub)
@@ -89,6 +110,12 @@ def makeAllPrivPubKeys(network):
             node.setBitcoinCompPub(bitcoinPub)
             node.setHasKeys(True)
 
+
+def makeSinglePrivKeyNodeId(nodeid):
+    privBits = nodeid.to_bytes(32, "big").hex()
+    wifPriv = wif.privToWif(privBits)
+    cPrivObj = CBitcoinSecret(wifPriv)
+    return cPrivObj
 
 def makeSinglePrivKey():
     """
@@ -392,7 +419,6 @@ class ChannelAnnouncement():
         a = self.serialize(False)
         h = hashlib.sha256(a).digest()
         hh = hashlib.sha256(h).digest()
-        self.printAnnoucement(False)
         return hh
 
     def printAnnoucement(self, full):

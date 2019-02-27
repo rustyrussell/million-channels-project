@@ -15,6 +15,7 @@ class Node:
         self.addrList = []
         self.nodeid = nodeid
         self.maxChannels = maxChannels
+        self.channels = []
 
     def setHasKeys(self, b):
         self.hasKeys = b
@@ -114,7 +115,7 @@ class Network:
             self.channels = []
         self.makeiGraph()
 
-    def addChannels(self,channels):
+    def addChannels(self, channels):
         self.channels += channels
 
     def makeiGraph(self):
@@ -182,7 +183,7 @@ class IncompleteNetwork(Network):     # inherits Network class
         return self.fullConnNodes + self.partConnNodes
 
     def getNodeNum(self):
-        return self.getNodes()
+        return len(self.getNodes())
 
     def getNodes(self):
         return self.fullConnNodes + self.partConnNodes + self.disconnNodes

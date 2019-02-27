@@ -33,8 +33,11 @@ def main():
     buildNetworkFast(network)
     t3 = time.time()
     print("buildNetworkFast", t3-t2)
-    utility.writeCompactNetwork(network, channelSaveFile)
-    draw(network.igraph)
+    t4 = time.time()
+    utility.writeNetwork(network, nodeSaveFile, channelSaveFile)
+    t5 = time.time()
+    print("writeNetwork",t5-t4)
+    # draw(network.igraph)
 
 def buildNetworkFast(network):
     """
@@ -52,7 +55,6 @@ def buildNetworkFast(network):
     ig = network.igraph
     ig.add_vertices(len(nodes))
     es = []
-    n = 0
     done = False
     for node in nodes:
         if node.isFull():
@@ -88,8 +90,7 @@ def buildNetworkFast(network):
             usedLst[node.nodeid] += [nodeToConnectId]
             usedLst[nodeToConnectId] += [node.nodeid]
             es += [(node.nodeid, nodeToConnectId)]
-        print("done with", n)
-        n += 1
+        print("done with", node.maxChannels)
         if done:
             break
     ig.add_edges(es)
