@@ -1,12 +1,8 @@
 import os
 
-"""
-TODO: MANY OF THESE FEILDS SHOULD EVENTUALLY BE CONFIGURABLE ON STARTUP
-"""
-
 ###buildNetwork.py###
 #can be changed by user:    ##MUST END IN BACKSLASH
-networkName = "1M"  # ex "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
+networkName = "1000000"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
 finalNumChannels = 2000000
 randSeed = 2
 channelFileName = "../data/channels_1-18-18.json"

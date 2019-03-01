@@ -141,7 +141,7 @@ def setRandSeed(s):
 
 def channelMaxSortKey(node):
     """
-    Use in .sort() when you want to sort a list of channels by channelCount
+    Use in .sort() when you want to sort a list of nodes by maxChannels
     :param node: node
     :return: channelCount
     """
@@ -149,10 +149,20 @@ def channelMaxSortKey(node):
 
 
 def sortByChannelCount(node):
+    """
+    Use in .sort() when you want to sort a list of nodes by channel count
+    :param node: node
+    :return: channelCount
+    """ 
     return node.channelCount
 
 
 def sortByNodeId(node):
+    """
+    Use in .sort() when you want to sort a list of nodes by nodeid
+    :param node: node
+    :return: nodeid
+    """ 
     return node.nodeid
 
 

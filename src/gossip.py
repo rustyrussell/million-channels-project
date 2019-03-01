@@ -51,6 +51,11 @@ GOSSIP_CHANNEL_UPDATE = "update"
 
 
 def main():
+    """
+    creates and writes all gossip from the files nodeSaveFile and channelSaveFile defined in config 
+    Writes this information to gossipSaveFile
+    Each channel has 1 channel annoucement and 2 channel updates. Keys and scids are determined determinisically based on node id.
+    """
     utility.setRandSeed(randSeed)
     SelectParams("regtest")
     t0 = time.time()
@@ -68,6 +73,13 @@ def main():
 
 
 def generateAllGossip(network, rawGossipSequence):
+    """
+    generates and writes all gossip. 
+    First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
+    Second, based on thread count, create lists of channel allococaters called tindex which helps with load balancing. A sequence of channels is called a bundle. 
+    Bundles will be assigned to each thread.
+    Last, we make a pool of processes (workers) running genGossip
+    """
     channels = network.channels
 
     network.fullConnNodes.sort(key=utility.sortByNodeId, reverse=False)
@@ -79,9 +91,11 @@ def generateAllGossip(network, rawGossipSequence):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    #generate bundles of 8
-    threadNum = 8
-
+    threadNum = 5
+ 
+    #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
+    #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
+    #This is a greedy way to get fairly equal load balancing.  
     tindex = [[] for i in range(0, threadNum)]
     for i in range(0, threadNum):
         tindex[0] += [i]
@@ -110,6 +124,11 @@ def generateAllGossip(network, rawGossipSequence):
 l = Lock()
 
 def genGossip(bundles):
+    """
+    Given bundles, we create annoucements and updates for each channel in each bundle
+    Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
+    :param: bundles: list of channel lists
+    """
     for bundle in bundles:
         genNode = bundle[0]
         channels = bundle[1]
@@ -139,12 +158,15 @@ def genGossip(bundles):
 
             p = Process(target=writeParallel, args=(ba, bu1, bu2))
             p.start()
-
-
+        print("done with bundle", genNode.nodeid)
 
 #cryptography functions
 
 def makeKeyOnDemand(node):
+    """
+    given a node, check if a key was already created and if not, generate 2 keys    and save the priv/pub keys of those 2 keys in the object
+    :param node: node obj 
+    """
     if not node.hasKeys:
         nodeid = node.nodeid
         nodeCPrivObj = makeSinglePrivKeyNodeId(nodeid)  # there can never be a 0 private key in ecdsa
@@ -161,7 +183,12 @@ def makeKeyOnDemand(node):
 
 
 def makeSinglePrivKeyNodeId(nodeid):
-    key = nodeid + 1
+    """
+    make and return a python bitcoin cprivobj 
+    :param nodeid: nodeid int
+    :return: CBitcoinSecret obj 
+    """
+    key = nodeid + 1   # we add 1 because keys cannot be 0
     privBits = key.to_bytes(32, "big")
     wifPriv = wif.privToWif(privBits.hex())
     cPrivObj = CBitcoinSecret(wifPriv)
@@ -327,7 +354,12 @@ def initGossip_store(filename):
     fp.close()
 
 def writeParallel(ba, bu1, bu2):
-    #spawn new thread to do below TODO
+    """
+    open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
+    :param: ba: serialized channel annoucement
+    :param: bu1: serialized channel update
+    :param: bu2: serialized channel update
+    """
     l.acquire(block=True)
     fp = open(gossipSaveFile, "ab")
     writeChannelAnnouncement(ba, fp)
@@ -364,6 +396,9 @@ def writeChannelUpdate(u, fp):
 #classes
 
 class ChannelUpdate():
+    """
+    Channel update class
+    """
     def __init__(self):
         self.HTLCMaxMSat = bytearray()  #since is it optional it starts out as empty
     def setSig(self, sig):
@@ -404,6 +439,9 @@ class ChannelUpdate():
         return hh
 
 class ChannelAnnouncement():
+    """
+    Channel Announcement class
+    """
     def setNodeSig1(self, sig):
         self.sig1 = sig
     def setNodeSig2(self, sig):
@@ -449,8 +487,25 @@ class ChannelAnnouncement():
         hh = hashlib.sha256(h).digest()
         return hh
 
-    def printAnnoucement(self, full):
+    def printAnnouncement(self, full):
+        """
+        printAnnouncement information
+        :param: if full annoucement or partial announcement
+        """
         if not full:
+            print("len:", self.featureLen.hex())
+            print("features", self.features.hex())
+            print("chain hash",chainHash.hex())
+            print("scid", self.scid.hex())
+            print("id1:", self.id1.hex())
+            print("id2:", self.id2.hex())
+            print("bitcoinKey1", self.bitcoinKey1.hex())
+            print("bitcoinKey2", self.bitcoinKey2.hex())
+        else:
+            print("sig 1", self.sig1.hex())
+            print("sig 2", self.sig2.hex())
+            print("bitcoinSig1", self.bitcoinSig1.hex())
+            print("bitcoinSig2", self.bitcoinSig2.hex())
             print("len:", self.featureLen.hex())
             print("features", self.features.hex())
             print("chain hash",chainHash.hex())
@@ -461,7 +516,7 @@ class ChannelAnnouncement():
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
 
-#these classes I got from stackoverflow: https://stackoverflow.com/a/53180921
+#NOTE: these 3 classes I got from stackoverflow: https://stackoverflow.com/a/53180921
 class NoDaemonProcess(Process):
     @property
     def daemon(self):
@@ -480,8 +535,6 @@ class MyPool(pool.Pool):
     def __init__(self, *args, **kwargs):
         kwargs['context'] = NoDaemonContext()
         super(MyPool, self).__init__(*args, **kwargs)
-
-
 
 
 

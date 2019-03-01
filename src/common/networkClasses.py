@@ -18,6 +18,10 @@ class Node:
         self.channels = []
 
     def setHasKeys(self, b):
+        """
+        if true, all keys are generated and saved. Otherwise, False
+        :param: b: true
+        """
         self.hasKeys = b
 
     def setNodeCPrivObj(self, cPrivObj):
@@ -90,6 +94,9 @@ class Channel:
 
 
 class Chan:
+    """
+    Light-weight channel object that is pickled 
+    """
     def __init__(self, channel):
         self.node1id = channel.node1.nodeid
         self.node2id = channel.node2.nodeid
@@ -157,7 +164,6 @@ class Network:
         """
            deletes channel
            :param channel: channel
-           :return:
            """
         node1 = channel.node1
         node2 = channel.node2
@@ -165,6 +171,9 @@ class Network:
         node2.removeChannel(channel)
 
 class IncompleteNetwork(Network):     # inherits Network class
+    """
+    Incomplete network that inherits Network. This is used when the network is being built. 
+    """
     def __init__(self, fullConnNodes, disconnNodes, partConnNodes=None, unfullNodes=None, igraph=None):
         Network.__init__(self, fullConnNodes)
         self.disconnNodes = disconnNodes
@@ -180,6 +189,11 @@ class IncompleteNetwork(Network):     # inherits Network class
             self.unfullNodes = unfullNodes
 
     def getConnNodes(self):
+        """
+        returns connected nodes
+        overides getConnNodes in Network class
+        :return: connected nodes 
+        """
         return self.fullConnNodes + self.partConnNodes
 
     def getNodeNum(self):
@@ -203,21 +217,14 @@ class Analysis:
         # self.cluster = (clusterDict, freqx, clustery, params, covariance)
 
     def betweenness(self):
+        """
+        calculate average betweenness of all verticies in graph
+        """
         igraph = self.network.igraph
         bs = igraph.betweenness()
         s = sum(bs)
         avg = s/len(bs)
         return avg
-
-
-class ChannelGenParams:
-    """
-    The parameters that help create an accurate network
-    """
-    def __init__(self, newNetwork, targetNetwork):
-        self.targetNetwork = targetNetwork
-        self.newNetwork = newNetwork
-
 
 
 

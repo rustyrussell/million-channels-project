@@ -97,7 +97,6 @@ def buildNetworkFast(network):
                 usedLst[nodeToConnectId] += [node.nodeid]
                 es += [(node.nodeid, nodeToConnectId)]
             afterBound = len(network.channels)
-            print("done with", node.maxChannels)
             #record gossip sequence
             if beforeBound-afterBound == 0:
                 pass

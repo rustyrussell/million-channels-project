@@ -111,16 +111,5 @@ def getClusterFreqData(nodes, clusterDict):
     return x,y,clusterY
 
 
-def betweennessCentrality(igraph, node):
-    bs = igraph.betweenness([node.id])
-    print(bs)
-    return bs
-
-
-def shortestPath(network, node1, node2):
-    pass
-
-
-
 
 
