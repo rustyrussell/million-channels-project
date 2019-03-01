@@ -7,7 +7,7 @@ from bitcoin import SelectParams
 import hashlib
 import time
 from copy import deepcopy, copy
-from multiprocessing import Process, Lock, Pool
+from multiprocessing import Process, Lock, Pool, pool, get_context
 
 
 chainHash = bytearray.fromhex('06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f')
@@ -58,29 +58,18 @@ def main():
     print(len(network.channels))
     t1 = time.time()
     print("loading network complete", t1-t0)
-    t2 = time.time()
-    # with Pool(5) as p:
-    #     n = p.map(call, network.getNodes())
-    #     print("stop")
-    # makeAllPrivPubKeys(network.getNodes())
-    t3 = time.time()
-    print("key creation complete", t3-t2)
-    t4 = time.time()
     initGossip_store(gossipSaveFile)
+    t2 = time.time()
     generateAllGossip(network, gossipSequence)
-    t5 = time.time()
-    print("generating/writing gossip complete", t5-t4)
+    t3 = time.time()
+    print("generating/writing gossip complete", t3-t2)
 
-    print("program complete", t5-t0)
+    print("program complete", t3-t0)
 
 
 def generateAllGossip(network, rawGossipSequence):
     channels = network.channels
-    writeList = []
 
-    #initial writing process
-    # wp = Process(target=writeGossipParall, args=(writeList, len(channels), filename))
-    # wp.start()
     network.fullConnNodes.sort(key=utility.sortByNodeId, reverse=False)
     nodes = network.fullConnNodes
 
@@ -90,8 +79,8 @@ def generateAllGossip(network, rawGossipSequence):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    #generate bundles of 4
-    threadNum = 4
+    #generate bundles of 8
+    threadNum = 8
 
     tindex = [[] for i in range(0, threadNum)]
     for i in range(0, threadNum):
@@ -113,18 +102,14 @@ def generateAllGossip(network, rawGossipSequence):
         i = i % threadNum
         j = j % threadNum
 
-
-
     #run genGossip with Pool.map
-    with Pool(threadNum) as p:
+    with MyPool(threadNum) as p:
         p.map(genGossip, bundles)
 
-    # wp.join()
 
 l = Lock()
 
 def genGossip(bundles):
-
     for bundle in bundles:
         genNode = bundle[0]
         channels = bundle[1]
@@ -142,38 +127,34 @@ def genGossip(bundles):
             else:
                 otherNode = node1
 
-            if not node2.hasKeys:
+            if not otherNode.hasKeys:
                 makeKeyOnDemand(otherNode)
 
             a = createChannelAnnouncement(channel, scid)
             u1, u2 = createChannelUpdates(channel, a, btimestamp, scid)
 
-            # TODO if I ever check for spaces, I need to find the bytes that are causing it, check for them here and then redo the ca and u1,u2 if that is the case
             ba = a.serialize(full=True)
             bu1 = u1.serialize(full=True)
             bu2 = u2.serialize(full=True)
 
-            #spawn new thread to do below TODO
-            l.acquire(block=True)
-            fp = open(gossipSaveFile, "ab")
-            writeChannelAnnouncement(ba, fp)
-            writeChannelUpdate(bu1, fp)
-            writeChannelUpdate(bu2, fp)
-            fp.close()
-            l.release()
+            p = Process(target=writeParallel, args=(ba, bu1, bu2))
+            p.start()
 
+
+
+#cryptography functions
 
 def makeKeyOnDemand(node):
     if not node.hasKeys:
         nodeid = node.nodeid
         nodeCPrivObj = makeSinglePrivKeyNodeId(nodeid)  # there can never be a 0 private key in ecdsa
         nodePub = compPubKey(nodeCPrivObj)
-        bitcoinCPrivObj = makeSinglePrivKey()
-        bitcoinPub = compPubKey(bitcoinCPrivObj)
+        #bitcoinCPrivObj = makeSinglePrivKey()
+        #bitcoinPub = compPubKey(bitcoinCPrivObj)
         node.setNodeCompPub(nodePub)
-        node.setBitcoinCompPub(bitcoinPub)
+        node.setBitcoinCompPub(nodePub) #TODO decide whether to have different keys for bitcoin and node
         node.setNodeCPrivObj(nodeCPrivObj)
-        node.setBitcoinCPrivObj(bitcoinCPrivObj)
+        node.setBitcoinCPrivObj(nodeCPrivObj)
         node.setHasKeys(True)
     else:
         raise ValueError("should have keys already generated")
@@ -217,6 +198,20 @@ def generateNewSecretKey():
     randbits = bytes(randBytes)
     return randbits
 
+
+def sign(key, h):
+    """
+    sign hash with key
+    :param key: key
+    :param h: hash bytes
+    :return: signature
+    """
+    sig, i = key.sign_compact(h)
+    return sig
+
+
+
+#annoucement creation
 
 def createChannelAnnouncement(channel, scid):
     """
@@ -317,33 +312,7 @@ def getScid(channel):
     bscid = bconnids + scidOutput
     return bscid
 
-def sign(key, h):
-    """
-    sign hash with key
-    :param key: key
-    :param h: hash bytes
-    :return: signature
-    """
-    sig, i = key.sign_compact(h)
-    return sig
-
-
-## gossip store functions
-def writeToGossip_store(writeList, filename):
-    """
-    writes gossip announcements and updates to gossip_store file.
-    :param writeList: a list of tuples: [(serialized_data, GOSSIP_CHANNEL_ANNOUNCEMENT|GOSSIP_CHANNEL_UPDATE)]
-    :param filename: filename of gossip_store
-    """
-    fp = open(filename, "ab")
-    for entry in writeList:
-        a = entry[0]
-        t = entry[1]
-        if t == GOSSIP_CHANNEL_ANNOUNCEMENT:
-            writeChannelAnnouncement(a, fp)
-        elif t == GOSSIP_CHANNEL_UPDATE:
-            writeChannelUpdate(a, fp)
-    fp.close()
+#writing functions
 
 def initGossip_store(filename):
     """
@@ -357,6 +326,17 @@ def initGossip_store(filename):
     fp.write(gossipVersion)
     fp.close()
 
+def writeParallel(ba, bu1, bu2):
+    #spawn new thread to do below TODO
+    l.acquire(block=True)
+    fp = open(gossipSaveFile, "ab")
+    writeChannelAnnouncement(ba, fp)
+    writeChannelUpdate(bu1, fp)
+    writeChannelUpdate(bu2, fp)
+    fp.close()
+    l.release()
+
+
 def writeChannelAnnouncement(a, fp):
     """
     write channel announcement
@@ -364,12 +344,9 @@ def writeChannelAnnouncement(a, fp):
     :param fp: file pointer
     :return: serialized gossip msg
     """
-    # aToWrite = bMsglenAFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA + a + bSatoshis
     fp.write(halfWriteA)
     fp.write(a)
     fp.write(bSatoshis)
-    # fp.write(aToWrite)
-    # return aToWrite
 
 
 def writeChannelUpdate(u, fp):
@@ -382,9 +359,6 @@ def writeChannelUpdate(u, fp):
 
     fp.write(halfWriteU)
     fp.write(u)
-    # print("len of u:", len(a))
-    # print(len(aToWrite.hex()))
-    # print(aToWrite.hex())
 
 
 #classes
@@ -487,23 +461,29 @@ class ChannelAnnouncement():
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
 
-main()
-#
-# SelectParams("regtest")
-# n = networkClasses.Node(0)
-# makeKeyParall(n)
-# import pickle
-# fp = open("pickle.txt", "wb")
-# pickle.dump(n, fp)
+#these classes I got from stackoverflow: https://stackoverflow.com/a/53180921
+class NoDaemonProcess(Process):
+    @property
+    def daemon(self):
+        return False
 
-#test functions
-def testSigning(num):
-    SelectParams("regtest")
-    k = makeSinglePrivKeyNodeId(num)
-    m = "message"
-    h = hashlib.sha256(m.encode()).digest()
-    sig = sign(k, h)
-    import bitcoin.signmessage as signmessage
-    # signmessage.VerifyMessage(sig,m,)
-    # r =
-    return
+    @daemon.setter
+    def daemon(self, value):
+        pass
+
+class NoDaemonContext(type(get_context())):
+    Process = NoDaemonProcess
+
+# We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
+# because the latter is only a wrapper function, not a proper class.
+class MyPool(pool.Pool):
+    def __init__(self, *args, **kwargs):
+        kwargs['context'] = NoDaemonContext()
+        super(MyPool, self).__init__(*args, **kwargs)
+
+
+
+
+
+main()
+
