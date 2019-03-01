@@ -80,7 +80,7 @@ def jsonToObject(jn):
 
     return nodes, channels
 
-def writeNetwork(network, nodeSaveFile, channelSaveFile):
+def writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile):
     """
     pickle write network to file.
     Format: #ofNodes, nodes, #ofChannels, channels
@@ -96,6 +96,7 @@ def writeNetwork(network, nodeSaveFile, channelSaveFile):
     f1.close()
 
     f2 = open(channelSaveFile, "wb")
+    dump(gossipSequence, f2)
     dump(len(network.channels), f2)   # num of channels
     for c in network.channels:
         dump(networkClasses.Chan(c), f2)
@@ -116,6 +117,7 @@ def loadNetwork(nodeSaveFile, channelSaveFile):
     f1.close()
 
     f2 = open(channelSaveFile, "rb")
+    gossipSequence = load(f2)
     numChannels = load(f2)
     channels = []
     for i in range(0, numChannels):
@@ -126,7 +128,7 @@ def loadNetwork(nodeSaveFile, channelSaveFile):
         channels += [channel]
     network = networkClasses.Network(nodes, channels)
     f2.close()
-    return network
+    return network, gossipSequence
 
 def setRandSeed(s):
     """

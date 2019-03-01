@@ -30,11 +30,11 @@ def main():
     print("nodeDistribution done", t1-t0)
     network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     t2 = time.time()
-    buildNetworkFast(network)
+    gossipSequence = buildNetworkFast(network)
     t3 = time.time()
     print("buildNetworkFast", t3-t2)
     t4 = time.time()
-    utility.writeNetwork(network, nodeSaveFile, channelSaveFile)
+    utility.writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile)
     t5 = time.time()
     print("writeNetwork",t5-t4)
     # draw(network.igraph)
@@ -55,47 +55,60 @@ def buildNetworkFast(network):
     ig = network.igraph
     ig.add_vertices(len(nodes))
     es = []
+    gossipSequence = []
     done = False
+    gi = 0
     for node in nodes:
+        beforeBound = len(network.channels)
         if node.isFull():
-            continue
-        channelsToCreate = node.maxChannels - node.channelCount
-        for i in range(0, int(channelsToCreate)):
-            if len(nodesLeft) - 1 == 0:
-                done = True
-                break
-            if len(usedLst[node.nodeid]) == (len(nodesLeft) - 1):  #if all nodes left are already connected to, go to the next node
-                break
-            r = random.randint(0, len(nodesLeft)-1)
-            nodeToConnect = nodesLeft[r]
-            nodeToConnectId = nodeToConnect.nodeid
-            b = nodeToConnect.isFull()
-            eq = node.nodeid == nodeToConnectId
-            j = 0
-            while b or eq or node.nodeid in usedLst[nodeToConnectId]:
-                if b:
-                    nodesLeft.pop(r)
-                if eq:
-                    nodesLeft.pop(r)
-                if len(nodesLeft)-1 == 0:
+            pass
+        else:
+            channelsToCreate = node.maxChannels - node.channelCount
+            for i in range(0, int(channelsToCreate)):
+                if len(nodesLeft) - 1 == 0:
                     done = True
                     break
-                r = random.randint(0, len(nodesLeft) - 1)
+                if len(usedLst[node.nodeid]) == (len(nodesLeft) - 1):  #if all nodes left are already connected to, go to the next node
+                    break
+                r = random.randint(0, len(nodesLeft)-1)
                 nodeToConnect = nodesLeft[r]
                 nodeToConnectId = nodeToConnect.nodeid
                 b = nodeToConnect.isFull()
                 eq = node.nodeid == nodeToConnectId
-                if j == 100:
-                    j = 0
-                j += 1
-            channel = network.createNewChannel(node, nodeToConnect)
-            usedLst[node.nodeid] += [nodeToConnectId]
-            usedLst[nodeToConnectId] += [node.nodeid]
-            es += [(node.nodeid, nodeToConnectId)]
-        print("done with", node.maxChannels)
-        if done:
-            break
+                j = 0
+                while b or eq or node.nodeid in usedLst[nodeToConnectId]:
+                    if b:
+                        nodesLeft.pop(r)
+                    if eq:
+                        nodesLeft.pop(r)
+                    if len(nodesLeft)-1 == 0:
+                        done = True
+                        break
+                    r = random.randint(0, len(nodesLeft) - 1)
+                    nodeToConnect = nodesLeft[r]
+                    nodeToConnectId = nodeToConnect.nodeid
+                    b = nodeToConnect.isFull()
+                    eq = node.nodeid == nodeToConnectId
+                    if j == 100:
+                        j = 0
+                    j += 1
+                channel = network.createNewChannel(node, nodeToConnect)
+                usedLst[node.nodeid] += [nodeToConnectId]
+                usedLst[nodeToConnectId] += [node.nodeid]
+                es += [(node.nodeid, nodeToConnectId)]
+            afterBound = len(network.channels)
+            print("done with", node.maxChannels)
+            #record gossip sequence
+            if beforeBound-afterBound == 0:
+                pass
+            else:
+                gossipSequence += [(node.nodeid, (beforeBound, afterBound))]
+
+            if done:
+                break
     ig.add_edges(es)
+
+    return gossipSequence
 
 
 def nodeDistribution(network, finalNumChannels):
@@ -103,7 +116,7 @@ def nodeDistribution(network, finalNumChannels):
     There are two ways to choose the distribution of nodes. We can use randomness based on randint and the prob curve
     or we can create nodes exactly with the percentage of the prob curve.
     :param finalNumChannels: channels to create in the network
-    :param randSeed: rand seed
+    :param randSeed: rand seedchannel
     :param randomDist: if True, we generate with randint. Otherwise generate proportionally.
     :return: node list
     """

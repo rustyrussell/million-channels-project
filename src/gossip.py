@@ -49,15 +49,12 @@ halfWriteU = bMsglenUFull + WIRE_GOSSIP_STORE_CHANNEL_UPDATE + bMsglenU
 GOSSIP_CHANNEL_ANNOUNCEMENT = "announcement"
 GOSSIP_CHANNEL_UPDATE = "update"
 
-def call(node):
-    node =  makeKeyParall(node)
-    return node
 
 def main():
     utility.setRandSeed(randSeed)
     SelectParams("regtest")
     t0 = time.time()
-    network = utility.loadNetwork(nodeSaveFile, channelSaveFile)
+    network, gossipSequence = utility.loadNetwork(nodeSaveFile, channelSaveFile)
     print(len(network.channels))
     t1 = time.time()
     print("loading network complete", t1-t0)
@@ -70,179 +67,117 @@ def main():
     print("key creation complete", t3-t2)
     t4 = time.time()
     initGossip_store(gossipSaveFile)
-    generateAllGossip(network)
+    generateAllGossip(network, gossipSequence)
     t5 = time.time()
     print("generating/writing gossip complete", t5-t4)
 
     print("program complete", t5-t0)
 
 
-def generateAllGossip(network):
+def generateAllGossip(network, rawGossipSequence):
     channels = network.channels
     writeList = []
 
     #initial writing process
     # wp = Process(target=writeGossipParall, args=(writeList, len(channels), filename))
     # wp.start()
+    network.fullConnNodes.sort(key=utility.sortByNodeId, reverse=False)
+    nodes = network.fullConnNodes
+
+    gossipSequence = []
+    for bound in rawGossipSequence:
+        i = bound[0]
+        bound = bound[1]
+        gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
+
+    #generate bundles of 4
+    threadNum = 4
+
+    tindex = [[] for i in range(0, threadNum)]
+    for i in range(0, threadNum):
+        tindex[0] += [i]
+    for i in range(1, threadNum):
+        tindex[i] = [tindex[i - 1][-1]] + tindex[i - 1][0:-1]
+
+    bundles = [[] for i in range(0, threadNum)]
+
+    i = 0
+    j = 0
+    for b in range(0, len(gossipSequence)):
+        gs = gossipSequence[b]
+        ti = tindex[i][j]
+        bundles[ti] += [gs]
+        if j == threadNum-1:
+            i += 1
+        j += 1
+        i = i % threadNum
+        j = j % threadNum
+
+
 
     #run genGossip with Pool.map
-    with Pool(5) as p:
-        p.map(genGossip, channels)
+    with Pool(threadNum) as p:
+        p.map(genGossip, bundles)
 
     # wp.join()
 
-## gossip store functions
-def writeGossipParall(writeList, numChannels, filename):
-    """
-    writes gossip announcements and updates to gossip_store file.
-    :param writeList: a list of tuples: [(serialized_data, GOSSIP_CHANNEL_ANNOUNCEMENT|GOSSIP_CHANNEL_UPDATE)]
-    :param filename: filename of gossip_store
-    """
-    fp = open(filename, "ab")
-
-    i = 0
-    while len(writeList) != numChannels:
-        lenWriteList = len(writeList)
-        if lenWriteList == (i+1) or lenWriteList == 0:
-            print("writelist in write:", writeList)
-            continue
-        else:
-            a = writeList[i][0]
-            u1 = writeList[i][1]
-            u2 = writeList[i][2]
-
-            writeChannelAnnouncement(a, fp)
-            writeChannelUpdate(u1, fp)
-            writeChannelUpdate(u2, fp)
-            i += 1
-
-    fp.close()
-
 l = Lock()
 
-def genGossip(channel):
-    scid = getScid(channel)
+def genGossip(bundles):
 
-    node1CPrivObj, node1Pub, bitcoin1CPrivObj, bitcoin1Pub = makeKeyOnDemand(channel.node1.nodeid)
-    node2CPrivObj, node2Pub, bitcoin2CPrivObj, bitcoin2Pub = makeKeyOnDemand(channel.node2.nodeid)
+    for bundle in bundles:
+        genNode = bundle[0]
+        channels = bundle[1]
 
-    a = createChannelAnnouncement(channel, scid, node1CPrivObj, node1Pub, bitcoin1CPrivObj, bitcoin1Pub, node2CPrivObj, node2Pub, bitcoin2CPrivObj, bitcoin2Pub)
-    u1, u2 = createChannelUpdates(channel, a, btimestamp, scid, node1CPrivObj, node1Pub, node2CPrivObj, node2Pub)
+        if not genNode.hasKeys:
+            makeKeyOnDemand(genNode)
 
-    # TODO if I ever check for spaces, I need to find the bytes that are causing it, check for them here and then redo the ca and u1,u2 if that is the case
-    ba = a.serialize(full=True)
-    bu1 = u1.serialize(full=True)
-    bu2 = u2.serialize(full=True)
-    # writeList = [(ba, GOSSIP_CHANNEL_ANNOUNCEMENT), (bu1, GOSSIP_CHANNEL_UPDATE), (bu2, GOSSIP_CHANNEL_UPDATE)]
-    # writeList += [[(ba, GOSSIP_CHANNEL_ANNOUNCEMENT), (bu1, GOSSIP_CHANNEL_UPDATE), (bu2, GOSSIP_CHANNEL_UPDATE)]]
-    # we write now so that we aren't holding a million CAs in memory
-    # if w % 100 == 0:
-    #     writeGossip(writeList, filename)
-    #     writeList = []
+        for channel in channels:
+            scid = getScid(channel)
 
-    l.acquire(block=True)
-    fp = open(gossipSaveFile, "ab")
-    writeChannelAnnouncement(ba, fp)
-    writeChannelUpdate(bu1, fp)
-    writeChannelUpdate(bu2, fp)
-    fp.close()
-    l.release()
-
-
-
-def generateAllGossipOld(network, filename):
-    """
-    Generate and write announcements and updates for all channels to gossip_store file
-    :param network: network object
-    """
-    channels = network.channels
-    timestamp = initialTimestamp
-    scid = initialscid
-    writeList = []
-    w = 0
-    i = 0
-    j = 1
-    for ch in channels:
-        if i == 1000:
-            print(str(1000*j), "gossip created")
-            j += 1
-            i = 0
-
-        timestamp += 1
-        btimestamp = bytearray(timestamp.to_bytes(4, byteorder="big"))
-        a = createChannelAnnouncement(ch,scid)
-        u1, u2 = createChannelUpdates(ch, a, btimestamp, scid)
-        #TODO if I ever check for spaces, I need to find the bytes that are causing it, check for them here and then redo the ca and u1,u2 if that is the case
-        ba = a.serialize(full=True)
-        bu1 = u1.serialize(full=True)
-        bu2 = u2.serialize(full=True)
-        writeList = [(ba, GOSSIP_CHANNEL_ANNOUNCEMENT), (bu1, GOSSIP_CHANNEL_UPDATE), (bu2, GOSSIP_CHANNEL_UPDATE)]
-        # writeList += [(ba, GOSSIP_CHANNEL_ANNOUNCEMENT), (bu1, GOSSIP_CHANNEL_UPDATE), (bu2, GOSSIP_CHANNEL_UPDATE)]
-        # we write now so that we aren't holding a million CAs in memory
-        # if w % 100 == 0:
-        #     writeGossip(writeList, filename)
-        #     writeList = []
-        writeToGossip_store(writeList, filename)
-        scid = getNextScid(scid)
-        i += 1
-        w += 1
-    # if writeList != []:
-    #     writeGossip(writeList, filename)
-
-
-#keys
-def makeAllPrivPubKeys(nodes):
-    """
-    make private and public keypair for every node in the network
-    :param network: network
-    """
-
-    i = 0
-    j = 1
-    for node in nodes:
-        if not node.hasKeys:
-            if i == 1000:
-                print(str(1000 * j), "keys created")
-                j += 1
-                i = 0
+            node1 = channel.node1
+            node2 = channel.node2
+            if node1 == genNode:
+                otherNode = node2
             else:
-                i += 1
+                otherNode = node1
 
-            nodeCPrivObj = makeSinglePrivKeyNodeId(node.nodeid)  # there can never be a 0 private key in ecdsa
-            #nodeCPrivObj = makeSinglePrivKey()
-            node.setNodeCPrivObj(nodeCPrivObj)
-            nodePub = compPubKey(nodeCPrivObj)
-            node.setNodeCompPub(nodePub)
-            bitcoinCPrivObj = makeSinglePrivKey()
-            bitcoinPub = compPubKey(bitcoinCPrivObj)
-            node.setBitcoinCPrivObj(bitcoinCPrivObj)
-            node.setBitcoinCompPub(bitcoinPub)
-            node.setHasKeys(True)
+            if not node2.hasKeys:
+                makeKeyOnDemand(otherNode)
 
+            a = createChannelAnnouncement(channel, scid)
+            u1, u2 = createChannelUpdates(channel, a, btimestamp, scid)
 
-def makeKeyParall(node):
-    """
-    Parallelized function
-    :param node: node obj
-    """
-    nodeCPrivObj = makeSinglePrivKeyNodeId(node.nodeid)  # there can never be a 0 private key in ecdsa
-    node.setNodeCPrivObj(nodeCPrivObj)
-    nodePub = compPubKey(nodeCPrivObj)
-    node.setNodeCompPub(nodePub)
-    bitcoinCPrivObj = makeSinglePrivKey()
-    bitcoinPub = compPubKey(bitcoinCPrivObj)
-    node.setBitcoinCPrivObj(bitcoinCPrivObj)
-    node.setBitcoinCompPub(bitcoinPub)
-    node.setHasKeys(True)
-    return nodeCPrivObj
+            # TODO if I ever check for spaces, I need to find the bytes that are causing it, check for them here and then redo the ca and u1,u2 if that is the case
+            ba = a.serialize(full=True)
+            bu1 = u1.serialize(full=True)
+            bu2 = u2.serialize(full=True)
+
+            #spawn new thread to do below TODO
+            l.acquire(block=True)
+            fp = open(gossipSaveFile, "ab")
+            writeChannelAnnouncement(ba, fp)
+            writeChannelUpdate(bu1, fp)
+            writeChannelUpdate(bu2, fp)
+            fp.close()
+            l.release()
 
 
-def makeKeyOnDemand(nodeid):
-    nodeCPrivObj = makeSinglePrivKeyNodeId(nodeid)  # there can never be a 0 private key in ecdsa
-    nodePub = compPubKey(nodeCPrivObj)
-    bitcoinCPrivObj = makeSinglePrivKey()
-    bitcoinPub = compPubKey(bitcoinCPrivObj)
-    return nodeCPrivObj, nodePub, bitcoinCPrivObj, bitcoinPub
+def makeKeyOnDemand(node):
+    if not node.hasKeys:
+        nodeid = node.nodeid
+        nodeCPrivObj = makeSinglePrivKeyNodeId(nodeid)  # there can never be a 0 private key in ecdsa
+        nodePub = compPubKey(nodeCPrivObj)
+        bitcoinCPrivObj = makeSinglePrivKey()
+        bitcoinPub = compPubKey(bitcoinCPrivObj)
+        node.setNodeCompPub(nodePub)
+        node.setBitcoinCompPub(bitcoinPub)
+        node.setNodeCPrivObj(nodeCPrivObj)
+        node.setBitcoinCPrivObj(bitcoinCPrivObj)
+        node.setHasKeys(True)
+    else:
+        raise ValueError("should have keys already generated")
+
 
 def makeSinglePrivKeyNodeId(nodeid):
     key = nodeid + 1
@@ -283,44 +218,33 @@ def generateNewSecretKey():
     return randbits
 
 
-def createChannelAnnouncement(channel, scid, nodeACPrivObj, nodeAPub, bitcoinACPrivObj, bitcoinAPub, nodeBCPrivObj, nodeBPub, bitcoinBCPrivObj, bitcoinBPub):
+def createChannelAnnouncement(channel, scid):
     """
     create a channel announcement
     :param channel: network classes channel obj
     :return: announcement
     """
-    if nodeAPub < nodeBPub:   #in bolt 7, node_id_1 is the pubkey that is "numerically-lesser" of the two
-        node1Pub = nodeAPub
-        node1CPrivObj = nodeACPrivObj
-        node2Pub = nodeBPub
-        node2CPrivObj = nodeBCPrivObj
-        bitcoin1Pub = bitcoinAPub
-        bitcoin1CPrivObj = bitcoinACPrivObj
-        bitcoin2Pub = bitcoinBPub
-        bitcoin2CPrivObj = bitcoinBCPrivObj
+    nodeA = channel.node1
+    nodeB = channel.node2
+    if nodeA.nodeCompPub < nodeB.nodeCompPub:   #in bolt 7, node_id_1 is the pubkey that is "numerically-lesser" of the two
+        node1 = nodeA
+        node2 = nodeB
     else:
-        node1Pub = nodeBPub
-        node1CPrivObj = nodeBCPrivObj
-        node2Pub = nodeAPub
-        node2CPrivObj = nodeACPrivObj
-        bitcoin1Pub = bitcoinBPub
-        bitcoin1CPrivObj = bitcoinBCPrivObj
-        bitcoin2Pub = bitcoinAPub
-        bitcoin2CPrivObj = bitcoinACPrivObj
-
+        node1 = nodeB
+        node2 = nodeA
     a = ChannelAnnouncement()
     a.setFeatureLen(featureLen)
     a.setFeatures(features)
     a.setscid(scid)
-    a.setNodeid1(node1Pub)
-    a.setNodeid2(node2Pub)
-    a.setBitcoinKey1(bitcoin1Pub)
-    a.setBitcoinKey2(bitcoin2Pub)
+    a.setNodeid1(node1.nodeCompPub)
+    a.setNodeid2(node2.nodeCompPub)
+    a.setBitcoinKey1(node1.bitcoinCompPub)
+    a.setBitcoinKey2(node2.bitcoinCompPub)
     h = a.hashPartial()
-    nodesig1 = bytearray(sign(node1CPrivObj, h))
-    nodesig2 = bytearray(sign(node2CPrivObj, h))
-    bitcoinSig1 = bytearray(sign(bitcoin1CPrivObj, h))
-    bitcoinSig2 = bytearray(sign(bitcoin2CPrivObj, h))
+    nodesig1 = bytearray(sign(node1.nodeCPrivObj, h))
+    nodesig2 = bytearray(sign(node2.nodeCPrivObj, h))
+    bitcoinSig1 = bytearray(sign(node1.bitcoinCPrivObj, h))
+    bitcoinSig2 = bytearray(sign(node2.bitcoinCPrivObj, h))
     a.setNodeSig1(nodesig1)
     a.setNodeSig2(nodesig2)
     a.setBitcoinSig1(bitcoinSig1)
@@ -328,7 +252,7 @@ def createChannelAnnouncement(channel, scid, nodeACPrivObj, nodeAPub, bitcoinACP
 
     return a
 
-def createChannelUpdates(channel, a, timestamp, scid, node1CPrivObj, node1Pub, node2CPrivObj, node2Pub):
+def createChannelUpdates(channel, a, timestamp, scid):
     """
     create channel updates for node1 and node2 in a channel
     :param channel: network classes channel obj
@@ -347,12 +271,12 @@ def createChannelUpdates(channel, a, timestamp, scid, node1CPrivObj, node1Pub, n
     u.setFeeBaseMSat(feeBaseMSat)
     u.setFeePropMill(feePropMill)
 
-    u1 = createChannelUpdate(channel, node1, node1CPrivObj, node1Pub, deepcopy(u), a)
-    u2 = createChannelUpdate(channel, node2, node2CPrivObj, node2Pub, deepcopy(u), a)
+    u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
+    u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
+
     return u1, u2
 
-
-def createChannelUpdate(channel, node, nodeCPrivObj, nodePub, u, a):
+def createChannelUpdate(channel, node, u, a):
     """
     create one channel update
     :param channel: network classes channel obj
@@ -363,10 +287,10 @@ def createChannelUpdate(channel, node, nodeCPrivObj, nodePub, u, a):
     """
     mFlags = ""
     cFlags = ""
-    if nodePub == a.id1:
+    if node.nodeCompPub == a.id1:
         mFlags = "00"
         cFlags = "0"
-    elif nodePub == a.id2:
+    elif node.nodeCompPub == a.id2:
         mFlags = "80"
         cFlags = "8"
     if node == channel.node1:
@@ -376,7 +300,7 @@ def createChannelUpdate(channel, node, nodeCPrivObj, nodePub, u, a):
     u.setmFlags(bytearray().fromhex(mFlags))
     u.setcFlags(bytearray().fromhex(cFlags))
     # update for node 1
-    s1 = sign(nodeCPrivObj, u.hashPartial())
+    s1 = sign(node.nodeCPrivObj, u.hashPartial())
     u.setSig(s1)
     return u
 
@@ -392,29 +316,6 @@ def getScid(channel):
     bconnids = bytearray(connids.to_bytes(6, "big"))
     bscid = bconnids + scidOutput
     return bscid
-
-def getNextScid(scid):
-    """
-    basic incremeneting method that currently allows 100 lightning txs in a block. This is naive may be changed in the future
-    :param scid: scid
-    :return: new scid
-    """
-    bheight = scid[0:3]
-    tx = int.from_bytes(bytes(scid[3:6]), "big")
-    boutput = scid[6:]
-
-    if tx == 100:
-        height = int.from_bytes(bytes(bheight), "big")
-        height += 1
-        bheight = bytearray(height.to_bytes(3, "big"))
-        tx = 1
-    else:
-        tx += 1
-
-    btx = bytearray(tx.to_bytes(3, "big"))
-
-    return bheight + btx + boutput
-
 
 def sign(key, h):
     """
@@ -455,16 +356,6 @@ def initGossip_store(filename):
     gossipVersion = bytearray().fromhex("03")
     fp.write(gossipVersion)
     fp.close()
-
-def writeGossip(writeLst, filename):
-    fp = open(filename, "ab")
-    gossip = bytearray()
-    for e in writeLst:
-        if e[1] == GOSSIP_CHANNEL_ANNOUNCEMENT:
-            gossip += bMsglenAFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA + e[0] + bSatoshis
-        elif e[1] == GOSSIP_CHANNEL_UPDATE:
-            gossip += bMsglenUFull + WIRE_GOSSIP_STORE_CHANNEL_UPDATE + bMsglenU + e[0]
-    fp.write(gossip)
 
 def writeChannelAnnouncement(a, fp):
     """
