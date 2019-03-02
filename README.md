@@ -2,10 +2,10 @@
 The goal of this project is to create a large test network (>1M channels) with an accurate topology extrapolated from the current topology. 
 This network will be used for testing routing algorithms and channel syncing.
 
-### Instructions on how to run without regenerating network:
+### Instructions on how to run without regenerating the network:
 
-    1. A sample of the gossip produced can be found in data/1M/1M.gossip. This file is split into smaller files. 
-        To combine files run:
+    1. A sample of the gossip produced can be found in data/1M/1M.gossip. 
+        This file is split into smaller files. To combine files run:
         `cd data/1M/gossip/
         cat xa* > ../1M.gossip`
 
