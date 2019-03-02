@@ -2,15 +2,20 @@
 The goal of this project is to create a large test network (>1M channels) with an accurate topology extrapolated from the current topology. 
 This network will be used for testing routing algorithms and channel syncing.
 
-## Instructions on how to run without regenerating network:
+### Instructions on how to run without regenerating network:
 
-    1. A sample of the gossip produced can be found in data/1M.gossip. This file is zipped. Unzip it.
-    2. rename the unzipped file gossip_store and copy it into .lightning directory that you are working in. 
+    1. A sample of the gossip produced can be found in data/1M/1M.gossip. This file is split into smaller files. To combine files run:
+        `mv data/1M/gossip/
+        cat xa* > ../1M.gossip`
+
+    2. rename 1M.gossip to gossip_store and copy it into .lightning directory that you are working in. 
+
     3. You MUST use this fork of c-lightning: https://github.com/nettijoe96/lightning 
         Compile with:
         `./configure --enable-MCP`
-    4. Run clightning, point it to the right .lightning directory, and watch it load gossip. If done correctly, `./lightning-cli listchannels` should return close to 1000000 channels  
 
+    4. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
+        `./lightning-cli listchannels` should return ~1M channels  
 
 The project has several seperate programs can be used to create a new network:
 
