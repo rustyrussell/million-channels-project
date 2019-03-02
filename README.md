@@ -4,8 +4,9 @@ This network will be used for testing routing algorithms and channel syncing.
 
 ### Instructions on how to run without regenerating network:
 
-    1. A sample of the gossip produced can be found in data/1M/1M.gossip. This file is split into smaller files. To combine files run:
-        `mv data/1M/gossip/
+    1. A sample of the gossip produced can be found in data/1M/1M.gossip. This file is split into smaller files. 
+        To combine files run:
+        `cd data/1M/gossip/
         cat xa* > ../1M.gossip`
 
     2. rename 1M.gossip to gossip_store and copy it into .lightning directory that you are working in. 
