@@ -77,8 +77,8 @@ def generateAllGossip(network, rawGossipSequence):
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
     Second, based on thread count, create lists of channel allococaters called tindex which helps with load balancing. A sequence of channels is called a bundle. 
-    Bundles will be assigned to each thread.
-    Last, we make a pool of processes (workers) running genGossip
+    Bundles will be assigned to each process.
+    Last, we make a group of processes running genGossip
     """
     channels = network.channels
 
@@ -91,7 +91,7 @@ def generateAllGossip(network, rawGossipSequence):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    threadNum = 5
+    threadNum = 1
  
     #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
     #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
@@ -116,9 +116,18 @@ def generateAllGossip(network, rawGossipSequence):
         i = i % threadNum
         j = j % threadNum
 
+    pList = []
+    for i in range(0, threadNum):
+        p = Process(target=genGossip, args=(bundles[i],)) 
+        p.start()
+        pList += [p]
+    for i in range(0, threadNum):
+        pList[i].join()
+      
+    
     #run genGossip with Pool.map
-    with MyPool(threadNum) as p:
-        p.map(genGossip, bundles)
+    #with MyPool(threadNum) as p:
+    #    p.map(genGossip, bundles)
 
 
 l = Lock()
@@ -129,13 +138,16 @@ def genGossip(bundles):
     Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
     :param: bundles: list of channel lists
     """
+    w = 0
+    pList = []
+    writeList = []
     for bundle in bundles:
         genNode = bundle[0]
         channels = bundle[1]
-
+        
         if not genNode.hasKeys:
             makeKeyOnDemand(genNode)
-
+          
         for channel in channels:
             scid = getScid(channel)
 
@@ -155,10 +167,19 @@ def genGossip(bundles):
             ba = a.serialize(full=True)
             bu1 = u1.serialize(full=True)
             bu2 = u2.serialize(full=True)
+  
+            writeList += [(ba, bu1, bu2)]
 
-            p = Process(target=writeParallel, args=(ba, bu1, bu2))
-            p.start()
-        print("done with bundle", genNode.nodeid)
+            # TODO: write every x number of channels
+            if w == 25:
+                p = Process(target=writeParallel, args=(writeList,))
+                pList += [p]
+                p.start()
+                w = 0
+            w += 1
+        print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
+    for p in pList:
+        p.join()
 
 #cryptography functions
 
@@ -353,7 +374,7 @@ def initGossip_store(filename):
     fp.write(gossipVersion)
     fp.close()
 
-def writeParallel(ba, bu1, bu2):
+def writeParallel(writeList):
     """
     open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
     :param: ba: serialized channel annoucement
@@ -362,9 +383,13 @@ def writeParallel(ba, bu1, bu2):
     """
     l.acquire(block=True)
     fp = open(gossipSaveFile, "ab")
-    writeChannelAnnouncement(ba, fp)
-    writeChannelUpdate(bu1, fp)
-    writeChannelUpdate(bu2, fp)
+    for g in writeList:
+        ba = g[0]
+        bu1 = g[1]
+        bu2 = g[2]
+        writeChannelAnnouncement(ba, fp)
+        writeChannelUpdate(bu1, fp)
+        writeChannelUpdate(bu2, fp)
     fp.close()
     l.release()
 

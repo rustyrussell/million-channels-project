@@ -38,14 +38,12 @@ class Node:
 
     def addChannel(self, channel):
         self.channelCount += 1
-        self.value += channel.value
 
     def setMaxChannels(self,num):
         self.maxChannels = num
 
     def removeChannel(self, channel):
         self.channelCount -= 1
-        self.value -= channel.value
 
     def inNetwork(self):
         return self.channelCount > 0
