@@ -91,7 +91,7 @@ def generateAllGossip(network, rawGossipSequence):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    threadNum = 1
+    threadNum = 25
  
     #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
     #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
@@ -171,16 +171,22 @@ def genGossip(bundles):
             writeList += [(ba, bu1, bu2)]
 
             # TODO: write every x number of channels
-            if w == 25:
+            if w == 100:
                 p = Process(target=writeParallel, args=(writeList,))
                 pList += [p]
                 p.start()
+                writeList = []
                 w = 0
             w += 1
         print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
+    p = Process(target=writeParallel, args=(writeList,))
+    pList += [p]
+    p.start()
+    writeList = []
+    print("done with thread")
     for p in pList:
         p.join()
-
+    print("done with thread and writing")
 #cryptography functions
 
 def makeKeyOnDemand(node):
@@ -382,17 +388,19 @@ def writeParallel(writeList):
     :param: bu2: serialized channel update
     """
     l.acquire(block=True)
-    fp = open(gossipSaveFile, "ab")
     for g in writeList:
         ba = g[0]
         bu1 = g[1]
         bu2 = g[2]
-        writeChannelAnnouncement(ba, fp)
-        writeChannelUpdate(bu1, fp)
-        writeChannelUpdate(bu2, fp)
-    fp.close()
+        writeChannelAnnouncement(ba, gossipSaveFile)
+        writeChannelUpdate(bu1, gossipSaveFile)
+        writeChannelUpdate(bu2, gossipSaveFile)
+    #try:
+    #    fp.close()
+    #except:
+    #    raise IOException("io execpt") 
     l.release()
-
+    return
 
 def writeChannelAnnouncement(a, fp):
     """
@@ -401,10 +409,10 @@ def writeChannelAnnouncement(a, fp):
     :param fp: file pointer
     :return: serialized gossip msg
     """
-    fp.write(halfWriteA)
-    fp.write(a)
-    fp.write(bSatoshis)
-
+    with open(fp, "ab") as fp:
+        fp.write(halfWriteA)
+        fp.write(a)
+        fp.write(bSatoshis)
 
 def writeChannelUpdate(u, fp):
     """
@@ -413,10 +421,9 @@ def writeChannelUpdate(u, fp):
     :param fp: file pointer
     :return: serialized gossip msg
     """
-
-    fp.write(halfWriteU)
-    fp.write(u)
-
+    with open(fp, "ab") as fp:
+        fp.write(halfWriteU)
+        fp.write(u)
 
 #classes
 

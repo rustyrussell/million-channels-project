@@ -2,13 +2,13 @@ import os
 
 ###buildNetwork.py###
 #can be changed by user:    ##MUST END IN BACKSLASH
-networkName = "1000"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
-finalNumChannels = 1000
+networkName = "1M"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
+finalNumChannels = 2000000
 randSeed = 2
 channelFileName = "../data/channels_1-18-18.json"
-channelSaveFile = "../data/" + networkName + ".channels"
-nodeSaveFile = "../data/" + networkName + ".nodes"
-gossipSaveFile = "../data/" + networkName + ".gossip"
+channelSaveFile = "../data/" + networkName + "/" + networkName + ".channels"
+nodeSaveFile = "../data/" + networkName + "/" + networkName + ".nodes"
+gossipSaveFile = "../data/" + networkName + "/" + networkName + ".gossip"
 maxChannelsPerNode = 100000
 baseDataDir = ""
 experimentName = ""   # ex "experTwo" , "7" , etc
