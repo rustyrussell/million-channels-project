@@ -1,9 +1,9 @@
 import os
 
 ###buildNetwork.py###
-#can be changed by user:    ##MUST END IN BACKSLASH
-networkName = "1M"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
-finalNumChannels = 2000000
+# can be changed by user: directories MUST end in backslash
+networkName = "10000"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
+finalNumChannels = 10000
 randSeed = 2
 channelFileName = "../data/channels_1-18-18.json"
 channelSaveFile = "../data/" + networkName + "/" + networkName + ".channels"
@@ -16,9 +16,10 @@ currExperimentDir = ""
 lightningDir =  ""
 
 
-#cannot be changed by user:
+# cannot be changed by user:
 lightningExpBaseDir = baseDataDir + currExperimentDir + experimentName
 lightningCliDir = lightningDir + "cli/"
+channelsToCreate = 2 * finalNumChannels
 
 
 

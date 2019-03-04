@@ -44,7 +44,7 @@ def jsonToObject(jn):
         currChannel = channelsJson[i]
         nodeid1 = channelsJson[i]["source"]
         nodeid2 = channelsJson[i]["destination"]
-        channelObj = networkClasses.Channel(None, None, currChannel)
+        channelObj = networkClasses.Channel(None, None, json=currChannel)
 
         nodeObj1 = networkClasses.Node(nodeid1)
         nodeObj2 = networkClasses.Node(nodeid2)
@@ -124,7 +124,7 @@ def loadNetwork(nodeSaveFile, channelSaveFile):
         chan = load(f2)
         node1 = nodes[chan.node1id]
         node2 = nodes[chan.node2id]
-        channel = networkClasses.Channel(node1, node2)
+        channel = networkClasses.Channel(node1, node2, scid=chan.scid)
         channels += [channel]
     network = networkClasses.Network(nodes, channels)
     f2.close()
@@ -138,6 +138,21 @@ def setRandSeed(s):
     """
     seed(s)
 
+
+def getScid(height, tx):
+    """
+    creates scid from block int and tx int
+    :param height: int
+    :param tx: int (between 1 and 1023 inclusive)
+    :return:scid bytearray
+    """
+
+    bheight = bytearray(height.to_bytes(3, "big"))
+    btx = bytearray(tx.to_bytes(3, "big"))
+    scidOutput = bytearray().fromhex("0001")  # output 1
+    bscid = bheight + btx + scidOutput
+
+    return bscid
 
 def channelMaxSortKey(node):
     """

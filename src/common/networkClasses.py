@@ -64,10 +64,11 @@ class Channel:
     """
     Channel class
     """
-    def __init__(self, node1, node2, json=None):
+    def __init__(self, node1, node2, scid=None, json=None):
         self.node1 = node1
         self.node2 = node2
         self.json = json
+        self.scid = scid
         if json != None:
             self.channelid = json["short_channel_id"]
             self.value = json["satoshis"]
@@ -80,6 +81,9 @@ class Channel:
 
     def setNode2(self, node2):
         self.node2 = node2
+
+    def setScid(self, scid):
+        self.scid = scid
 
     def __lt__(self, otherChannel):
         return self.channelid < otherChannel.channelid
@@ -98,6 +102,7 @@ class Chan:
     def __init__(self, channel):
         self.node1id = channel.node1.nodeid
         self.node2id = channel.node2.nodeid
+        self.scid = channel.scid
 
 
 class Network:

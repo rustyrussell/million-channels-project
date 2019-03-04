@@ -15,8 +15,6 @@ channelType = bytearray().fromhex("0100") #256
 updateType = bytearray().fromhex("0102") #258
 featureLen = bytearray().fromhex("0000")
 features = bytearray()
-initialscid = bytearray().fromhex("0000010000010001")  #block height 1, tx 1, output 1
-scidOutput = bytearray().fromhex("0001") #output 1
 satoshis = 10000000 # 1 btc
 bSatoshis = bytearray(satoshis.to_bytes(8, byteorder="big"))
 WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
@@ -37,7 +35,6 @@ feeBaseMSat = 1000
 feeBaseMSat = bytearray(feeBaseMSat.to_bytes(4, byteorder="big"))
 feePropMill = 1000
 feePropMill = bytearray(feePropMill.to_bytes(4, byteorder="big"))
-#update
 WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
 msglenU = 130
 bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
@@ -91,7 +88,7 @@ def generateAllGossip(network, rawGossipSequence):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    threadNum = 25
+    threadNum = 4
  
     #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
     #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
@@ -123,11 +120,6 @@ def generateAllGossip(network, rawGossipSequence):
         pList += [p]
     for i in range(0, threadNum):
         pList[i].join()
-      
-    
-    #run genGossip with Pool.map
-    #with MyPool(threadNum) as p:
-    #    p.map(genGossip, bundles)
 
 
 l = Lock()
@@ -149,8 +141,7 @@ def genGossip(bundles):
             makeKeyOnDemand(genNode)
           
         for channel in channels:
-            scid = getScid(channel)
-
+            scid = channel.scid
             node1 = channel.node1
             node2 = channel.node2
             if node1 == genNode:
@@ -187,6 +178,8 @@ def genGossip(bundles):
     for p in pList:
         p.join()
     print("done with thread and writing")
+
+
 #cryptography functions
 
 def makeKeyOnDemand(node):
@@ -353,18 +346,6 @@ def createChannelUpdate(channel, node, u, a):
     u.setSig(s1)
     return u
 
-def getScid(channel):
-    """
-    nodeid
-    :param nodeid:
-    :return:
-    """
-    nodeid1 = channel.node1.nodeid
-    nodeid2 = channel.node2.nodeid
-    connids = int(str(nodeid1) + str(nodeid2))
-    bconnids = bytearray(connids.to_bytes(6, "big"))
-    bscid = bconnids + scidOutput
-    return bscid
 
 #writing functions
 
@@ -395,10 +376,7 @@ def writeParallel(writeList):
         writeChannelAnnouncement(ba, gossipSaveFile)
         writeChannelUpdate(bu1, gossipSaveFile)
         writeChannelUpdate(bu2, gossipSaveFile)
-    #try:
-    #    fp.close()
-    #except:
-    #    raise IOException("io execpt") 
+
     l.release()
     return
 
@@ -547,26 +525,6 @@ class ChannelAnnouncement():
             print("bitcoinKey1", self.bitcoinKey1.hex())
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
-
-#NOTE: these 3 classes I got from stackoverflow: https://stackoverflow.com/a/53180921
-class NoDaemonProcess(Process):
-    @property
-    def daemon(self):
-        return False
-
-    @daemon.setter
-    def daemon(self, value):
-        pass
-
-class NoDaemonContext(type(get_context())):
-    Process = NoDaemonProcess
-
-# We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
-# because the latter is only a wrapper function, not a proper class.
-class MyPool(pool.Pool):
-    def __init__(self, *args, **kwargs):
-        kwargs['context'] = NoDaemonContext()
-        super(MyPool, self).__init__(*args, **kwargs)
 
 
 

@@ -25,7 +25,7 @@ def main():
     targetNetwork.channels = channels
     targetNetwork.analysis.analyze()
     utility.setRandSeed(randSeed)
-    newNodes = nodeDistribution(targetNetwork, finalNumChannels)   # eventually a config command can turn on and off the rand dist
+    newNodes = nodeDistribution(targetNetwork, channelsToCreate)   # eventually a config command can turn on and off the rand dist
     t1 = time.time()
     print("nodeDistribution done", t1-t0)
     network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
@@ -57,7 +57,8 @@ def buildNetworkFast(network):
     es = []
     gossipSequence = []
     done = False
-    gi = 0
+    scidBlock = 1
+    scidTx = 1
     for node in nodes:
         beforeBound = len(network.channels)
         if node.isFull():
@@ -75,7 +76,6 @@ def buildNetworkFast(network):
                 nodeToConnectId = nodeToConnect.nodeid
                 b = nodeToConnect.isFull()
                 eq = node.nodeid == nodeToConnectId
-                j = 0
                 while b or eq or node.nodeid in usedLst[nodeToConnectId]:
                     if b:
                         nodesLeft.pop(r)
@@ -89,10 +89,9 @@ def buildNetworkFast(network):
                     nodeToConnectId = nodeToConnect.nodeid
                     b = nodeToConnect.isFull()
                     eq = node.nodeid == nodeToConnectId
-                    if j == 100:
-                        j = 0
-                    j += 1
                 channel = network.createNewChannel(node, nodeToConnect)
+                channel.setScid(utility.getScid(scidBlock, scidTx))
+                scidBlock, scidTx = incrementScid(scidBlock, scidTx)
                 usedLst[node.nodeid] += [nodeToConnectId]
                 usedLst[nodeToConnectId] += [node.nodeid]
                 es += [(node.nodeid, nodeToConnectId)]
@@ -109,6 +108,17 @@ def buildNetworkFast(network):
 
     return gossipSequence
 
+
+def incrementScid(height, tx):
+    maxFundingTxPerBlock = 1023
+    if tx == maxFundingTxPerBlock:
+        tx = 1
+        height += 1
+    elif tx < maxChannelsPerNode:
+        tx += 1
+    else:
+        raise ValueError("incrementScid: tx cannot be greater than ", str(maxFundingTxPerBlock))
+    return height, tx
 
 def nodeDistribution(network, finalNumChannels):
     """
