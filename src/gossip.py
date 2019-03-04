@@ -1,14 +1,10 @@
 from config import *
-from random import randint
-from common import utility, networkClasses
-import common.wif as wif
-from bitcoin.wallet import CBitcoinSecret, P2PKHBitcoinAddress
+from common import utility, crypto
 from bitcoin import SelectParams
 import hashlib
 import time
-from copy import deepcopy, copy
-from multiprocessing import Process, Lock, Pool, pool, get_context
-
+from copy import deepcopy
+from multiprocessing import Process, Lock
 
 chainHash = bytearray.fromhex('06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f')
 channelType = bytearray().fromhex("0100") #256
@@ -88,7 +84,7 @@ def generateAllGossip(network, rawGossipSequence):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    threadNum = 4
+    threadNum = 15
  
     #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
     #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
@@ -138,7 +134,7 @@ def genGossip(bundles):
         channels = bundle[1]
         
         if not genNode.hasKeys:
-            makeKeyOnDemand(genNode)
+            crypto.makeKeyOnDemand(genNode)
           
         for channel in channels:
             scid = channel.scid
@@ -150,7 +146,7 @@ def genGossip(bundles):
                 otherNode = node1
 
             if not otherNode.hasKeys:
-                makeKeyOnDemand(otherNode)
+                crypto.makeKeyOnDemand(otherNode)
 
             a = createChannelAnnouncement(channel, scid)
             u1, u2 = createChannelUpdates(channel, a, btimestamp, scid)
@@ -180,84 +176,6 @@ def genGossip(bundles):
     print("done with thread and writing")
 
 
-#cryptography functions
-
-def makeKeyOnDemand(node):
-    """
-    given a node, check if a key was already created and if not, generate 2 keys    and save the priv/pub keys of those 2 keys in the object
-    :param node: node obj 
-    """
-    if not node.hasKeys:
-        nodeid = node.nodeid
-        nodeCPrivObj = makeSinglePrivKeyNodeId(nodeid)  # there can never be a 0 private key in ecdsa
-        nodePub = compPubKey(nodeCPrivObj)
-        #bitcoinCPrivObj = makeSinglePrivKey()
-        #bitcoinPub = compPubKey(bitcoinCPrivObj)
-        node.setNodeCompPub(nodePub)
-        node.setBitcoinCompPub(nodePub) #TODO decide whether to have different keys for bitcoin and node
-        node.setNodeCPrivObj(nodeCPrivObj)
-        node.setBitcoinCPrivObj(nodeCPrivObj)
-        node.setHasKeys(True)
-    else:
-        raise ValueError("should have keys already generated")
-
-
-def makeSinglePrivKeyNodeId(nodeid):
-    """
-    make and return a python bitcoin cprivobj 
-    :param nodeid: nodeid int
-    :return: CBitcoinSecret obj 
-    """
-    key = nodeid + 1   # we add 1 because keys cannot be 0
-    privBits = key.to_bytes(32, "big")
-    wifPriv = wif.privToWif(privBits.hex())
-    cPrivObj = CBitcoinSecret(wifPriv)
-    return cPrivObj
-
-def makeSinglePrivKey():
-    """
-    make private key python bitcoin object
-    :return: python-bitcoin key object
-    """
-    randbits = generateNewSecretKey()
-    wifPriv = wif.privToWif(randbits.hex())
-    cPrivObj = CBitcoinSecret(wifPriv)
-    return cPrivObj
-
-def compPubKey(keyObj):
-    """
-    get public key from python-bitcoin key object
-    :param keyObj: python-bitcoin key object
-    :return: public bytes
-    """
-    keyObj._cec_key.set_compressed(True)
-    pubbits = keyObj._cec_key.get_pubkey()
-    return pubbits
-
-def generateNewSecretKey():
-    """
-    using default python randomness because secret keys don't have to be secure
-    :return: CECKey priv key , CPubKey
-    """
-
-    size = 32
-    randBytes = [randint(0,255) for i in range(0, size)]
-    randbits = bytes(randBytes)
-    return randbits
-
-
-def sign(key, h):
-    """
-    sign hash with key
-    :param key: key
-    :param h: hash bytes
-    :return: signature
-    """
-    sig, i = key.sign_compact(h)
-    return sig
-
-
-
 #annoucement creation
 
 def createChannelAnnouncement(channel, scid):
@@ -283,10 +201,10 @@ def createChannelAnnouncement(channel, scid):
     a.setBitcoinKey1(node1.bitcoinCompPub)
     a.setBitcoinKey2(node2.bitcoinCompPub)
     h = a.hashPartial()
-    nodesig1 = bytearray(sign(node1.nodeCPrivObj, h))
-    nodesig2 = bytearray(sign(node2.nodeCPrivObj, h))
-    bitcoinSig1 = bytearray(sign(node1.bitcoinCPrivObj, h))
-    bitcoinSig2 = bytearray(sign(node2.bitcoinCPrivObj, h))
+    nodesig1 = bytearray(crypto.sign(node1.nodeCPrivObj, h))
+    nodesig2 = bytearray(crypto.sign(node2.nodeCPrivObj, h))
+    bitcoinSig1 = bytearray(crypto.sign(node1.bitcoinCPrivObj, h))
+    bitcoinSig2 = bytearray(crypto.sign(node2.bitcoinCPrivObj, h))
     a.setNodeSig1(nodesig1)
     a.setNodeSig2(nodesig2)
     a.setBitcoinSig1(bitcoinSig1)
@@ -342,7 +260,7 @@ def createChannelUpdate(channel, node, u, a):
     u.setmFlags(bytearray().fromhex(mFlags))
     u.setcFlags(bytearray().fromhex(cFlags))
     # update for node 1
-    s1 = sign(node.nodeCPrivObj, u.hashPartial())
+    s1 = crypto.sign(node.nodeCPrivObj, u.hashPartial())
     u.setSig(s1)
     return u
 
@@ -527,6 +445,7 @@ class ChannelAnnouncement():
 
 
 
-
-main()
+assert(checkGossipFields()==True)
+if __name__ == "__main__":
+    main()
 

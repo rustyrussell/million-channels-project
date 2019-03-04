@@ -2,8 +2,8 @@ import os
 
 ###buildNetwork.py###
 # can be changed by user: directories MUST end in backslash
-networkName = "10000"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
-finalNumChannels = 10000
+networkName = "1000"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
+finalNumChannels = 1000
 randSeed = 2
 channelFileName = "../data/channels_1-18-18.json"
 channelSaveFile = "../data/" + networkName + "/" + networkName + ".channels"
