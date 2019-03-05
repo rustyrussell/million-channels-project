@@ -113,21 +113,28 @@ def loadNetwork(nodeSaveFile, channelSaveFile):
     nodes = []
     for i in range(0, numNodes):
         nodes += [load(f1)]
-    nodes.sort(key=sortByNodeId)
     f1.close()
+    nodes.sort(key=sortByNodeId)
+
 
     f2 = open(channelSaveFile, "rb")
     gossipSequence = load(f2)
     numChannels = load(f2)
     channels = []
+    es = []
     for i in range(0, numChannels):
         chan = load(f2)
         node1 = nodes[chan.node1id]
         node2 = nodes[chan.node2id]
         channel = networkClasses.Channel(node1, node2, scid=chan.scid)
         channels += [channel]
-    network = networkClasses.Network(nodes, channels)
+        es += [(channel.node1.nodeid, channel.node2.nodeid)]
     f2.close()
+    network = networkClasses.Network(nodes, channels)
+    network.igraph = Graph()
+    network.igraph.add_vertices(len(network.fullConnNodes))
+    network.igraph.add_edges(es)
+
     return network, gossipSequence
 
 def setRandSeed(s):

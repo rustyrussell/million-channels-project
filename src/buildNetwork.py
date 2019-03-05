@@ -37,7 +37,7 @@ def main():
     utility.writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile)
     t5 = time.time()
     print("writeNetwork",t5-t4)
-    draw(network.igraph)
+    # draw(network.igraph)
 
 def buildNetworkFast(network):
     """

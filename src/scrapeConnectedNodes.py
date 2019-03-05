@@ -56,7 +56,7 @@ def connect(filename, jType):
     os.chdir(lightningCliDir)
     for node in nodeList:
         try:
-            subprocess.run(["./lightning-cli", "--lightning-dir="+lightningExpBaseDir, "connect", node])
+            subprocess.run(["./lightning-cli", "--lightning-dir="+lightningDataDir, "connect", node])
         except:  # TODO: horrible except statement because I don't know how to except specifically timeouts on the lightning-cli side
             pass
 
