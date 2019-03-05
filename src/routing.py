@@ -8,11 +8,11 @@ import time
 
 def main():
     SelectParams("regtest")
-    network, gs = utility.loadNetwork(nodeSaveFile, channelSaveFile)
-    argv = sys.argv
-    if len(argv) == 3: #input a source and destination
-        si = int(argv[1])  #source
-        di = int(argv[2])  #destination
+    argv = sys.argv    #TODO: add argparse 
+    if argv[1] == "route": #input a source and destination
+        network, gs = utility.loadNetwork(nodeSaveFile, channelSaveFile)
+        si = int(argv[2])  #source
+        di = int(argv[3])  #destination
         sPub = getPubKey(si)
         dPub = getPubKey(di)
         routeL = getRouteLightning(sPub, dPub)
@@ -20,9 +20,12 @@ def main():
         routesI = getRouteigraph(si, di, network.igraph)
         printigraphRoutes(routesI)
 
-    elif len(argv) == 1:  #benchmark 1000 shortest routes and find the average
-        trials = 1000
-        nodeNum = len(network.getNodes())
+    elif argv[1] == "avg":  #benchmark shortest routes and find the average
+        if len(argv) == 4:  
+            trials = int(argv[2])
+            nodeNum = int(argv[3])
+        else:
+            raise ValueError("need more arguments")
         totTime = 0
         totHops = 0
         for i in range(0, trials):

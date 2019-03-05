@@ -18,7 +18,7 @@ This network will be used for testing routing algorithms and channel syncing.
 4. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
     `./lightning-cli listchannels` should return ~1M channels  
 
-The project has several seperate programs can be used to create a new network:
+## The project has several programs that can be used to create a new network:
 
 1. buildNetwork.py: Applies a scaling factor to make a similar network on regtest
     1. To get your own node data to feed into buildNetwork, run:
