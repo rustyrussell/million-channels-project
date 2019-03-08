@@ -23,8 +23,8 @@ def main():
     
 def parse():
     parse = argparse.ArgumentParser()
-    parse.add_argument("--build", action="store_const", const=True)
-    parse.add_argument("--gossip", action="store_const", const=True)   #program
+    parse.add_argument("--build-only", action="store_const", const=True)
+    parse.add_argument("--gossip-only", action="store_const", const=True)
     parse.add_argument("--config", type=str)
     parse.add_argument("--name", type=str, required=False)
     parse.add_argument("--channelNum", type=int)
