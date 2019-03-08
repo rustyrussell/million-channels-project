@@ -21,18 +21,26 @@ This network will be used for testing routing algorithms and channel syncing.
 
 ## Generating network or gossip from scratch
 
-    1. main.py can create the network and/or the gossip messages. Running main.py with --build-only only builds and saves the network. Running main.py with --gossip-only only generates gossip. Running without either --build-only or --gossip-only does both.
-    2. building the network consists of analyzing a provided network and scaling it up. Therefore, you need your own network data. To get your own network data to feed into main.py for building the network, run:
-     `./lightning-cli listchannels` on a highly connected node. 
-     You can use scrapeConnectedNodes.py to help make your node highly connected
-    3. To run without building network, you can use the .nodes files and .channels files provided in /data as the nodeSaveFile and channelSaveFile located in config.py or as cmdline args (ex. --nodeSaveFile /path/to/file). 
-        For 1M network, do the following:
-        `cd data/1M/nodes/
-        xz -d xa*
-        cat xa* > ../1M.nodes`
-        `cd data/1M/channels/
-        xz -d xa*
-        cat xa* > ../1M.channels`
+    1. main.py can create the network and/or the gossip messages. 
+       Running main.py with --build-only only builds and saves the network. 
+       Running main.py with --gossip-only only generates gossip. 
+       Running without either --build-only or --gossip-only does both.
+    2. building the network consists of analyzing a provided network and scaling it up. 
+       Therefore, you need your own network data and set analysisListChannelsFile 
+       You can use data provided in data/channels_1-18-18.json.zx (make sure you unzip)
+       To get your own network data to feed into main.py for building the network, run:
+       `./lightning-cli listchannels` on a highly connected node. 
+       You can use scrapeConnectedNodes.py to help make your node highly connected
+    3. To run without building network, you can use the .nodes files and .channels files 
+       provided in /data as the nodeSaveFile and channelSaveFile located in config.py 
+       or as cmdline args (ex. --nodeSaveFile /path/to/file). 
+           For 1M network, do the following:
+           `cd data/1M/nodes/
+           xz -d xa*
+           cat xa* > ../1M.nodes`
+           `cd data/1M/channels/
+           xz -d xa*
+           cat xa* > ../1M.channels`
         
 3. scrapeConnectedNodes.py: Connects to nodes in lightning network that are scraped from node files
 

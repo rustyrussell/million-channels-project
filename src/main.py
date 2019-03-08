@@ -12,9 +12,9 @@ def main():
     else:
         import config
     overrideConfig(args, config)
-    if args.build:
+    if args.build-only:
         buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
-    elif args.gossip:
+    elif args.gossip-only:
         gossip.main(config.randSeed, config.gossipSaveFile, nodeSaveFile=config.nodeSaveFile, channelSaveFile=config.channelSaveFile)
     else:
         network, gossipSequence = buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
