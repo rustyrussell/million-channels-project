@@ -12,9 +12,9 @@ def main():
     else:
         import config
     overrideConfig(args, config)
-    if args.build-only:
+    if args.build_only:
         buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
-    elif args.gossip-only:
+    elif args.gossip_only:
         gossip.main(config.randSeed, config.gossipSaveFile, nodeSaveFile=config.nodeSaveFile, channelSaveFile=config.channelSaveFile)
     else:
         network, gossipSequence = buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
@@ -23,8 +23,8 @@ def main():
     
 def parse():
     parse = argparse.ArgumentParser()
-    parse.add_argument("--build-only", action="store_const", const=True)
-    parse.add_argument("--gossip-only", action="store_const", const=True)
+    parse.add_argument("--build_only", action="store_const", const=True)
+    parse.add_argument("--gossip_only", action="store_const", const=True)
     parse.add_argument("--config", type=str)
     parse.add_argument("--name", type=str, required=False)
     parse.add_argument("--channelNum", type=int)
