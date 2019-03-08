@@ -1,3 +1,4 @@
+import os
 from config import *
 from common import utility, crypto
 from bitcoin import SelectParams
@@ -6,44 +7,8 @@ import time
 from copy import deepcopy
 from multiprocessing import Process, Lock
 
-chainHash = bytearray.fromhex('06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f')
-channelType = bytearray().fromhex("0100") #256
-updateType = bytearray().fromhex("0102") #258
-featureLen = bytearray().fromhex("0000")
-features = bytearray()
-satoshis = 10000000 # 1 btc
-bSatoshis = bytearray(satoshis.to_bytes(8, byteorder="big"))
-WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
-msglenA = 432
-bMsglenA = bytearray(msglenA.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
-fulllenA = len(WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT) + len(bMsglenA) + msglenA + len(bSatoshis)  # remember, we don't have checksum and we don't count gossipVersion
-bMsglenAFull = bytearray(fulllenA.to_bytes(4, byteorder="big"))
-halfWriteA = bMsglenAFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA
 
-#update fields
-initialTimestamp = 1550513768     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
-btimestamp = bytearray(initialTimestamp.to_bytes(4, byteorder="big"))
-cltvDelta = 10
-cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
-htlcMSat = 10000
-htlcMSat = bytearray(htlcMSat.to_bytes(8, byteorder="big"))
-feeBaseMSat = 1000
-feeBaseMSat = bytearray(feeBaseMSat.to_bytes(4, byteorder="big"))
-feePropMill = 1000
-feePropMill = bytearray(feePropMill.to_bytes(4, byteorder="big"))
-WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
-msglenU = 130
-bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
-fulllenU = len(WIRE_GOSSIP_STORE_CHANNEL_UPDATE) + len(bMsglenU) + msglenU  # remember, we don't have checksum and we don't count gossipVersion
-bMsglenUFull = bytearray(fulllenU.to_bytes(4, byteorder="big"))
-halfWriteU = bMsglenUFull + WIRE_GOSSIP_STORE_CHANNEL_UPDATE + bMsglenU
-
-
-GOSSIP_CHANNEL_ANNOUNCEMENT = "announcement"
-GOSSIP_CHANNEL_UPDATE = "update"
-
-
-def main():
+def main(randSeed, gossipSaveFile, nodeSaveFile=None, channelSaveFile=None, network=None, gossipSequence=None):
     """
     creates and writes all gossip from the files nodeSaveFile and channelSaveFile defined in config 
     Writes this information to gossipSaveFile
@@ -52,10 +17,12 @@ def main():
     utility.setRandSeed(randSeed)
     SelectParams("regtest")
     t0 = time.time()
-    network, gossipSequence = utility.loadNetwork(nodeSaveFile, channelSaveFile)
-    print(len(network.channels))
-    t1 = time.time()
-    print("loading network complete", t1-t0)
+    if network == None:
+        network, gossipSequence = utility.loadNetwork(nodeSaveFile, channelSaveFile)
+        print(len(network.channels))
+        t1 = time.time()
+        print("loading network complete", t1-t0)
+
     initGossip_store(gossipSaveFile)
     t2 = time.time()
     generateAllGossip(network, gossipSequence)
@@ -63,7 +30,6 @@ def main():
     print("generating/writing gossip complete", t3-t2)
 
     print("program complete", t3-t0)
-
 
 def generateAllGossip(network, rawGossipSequence):
     """
@@ -74,10 +40,8 @@ def generateAllGossip(network, rawGossipSequence):
     Last, we make a group of processes running genGossip
     """
     channels = network.channels
-
     network.fullConnNodes.sort(key=utility.sortByNodeId, reverse=False)
-    nodes = network.fullConnNodes
-
+    nodes = network.getNodes()
     gossipSequence = []
     for bound in rawGossipSequence:
         i = bound[0]
@@ -165,17 +129,53 @@ def genGossip(bundles):
                 writeList = []
                 w = 0
             w += 1
-        print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
+        # print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
     p = Process(target=writeParallel, args=(writeList,))
     pList += [p]
     p.start()
-    print("done with thread")
+    # print("done with thread")
     for p in pList:
         p.join()
-    print("done with thread and writing")
+    # print("done with thread and writing")
 
 
 #annoucement creation
+
+chainHash = bytearray.fromhex('06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f')
+channelType = bytearray().fromhex("0100") #256
+updateType = bytearray().fromhex("0102") #258
+featureLen = bytearray().fromhex("0000")
+features = bytearray()
+satoshis = 10000000 # 1 btc
+bSatoshis = bytearray(satoshis.to_bytes(8, byteorder="big"))
+WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
+msglenA = 432
+bMsglenA = bytearray(msglenA.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
+fulllenA = len(WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT) + len(bMsglenA) + msglenA + len(bSatoshis)  # remember, we don't have checksum and we don't count gossipVersion
+bMsglenAFull = bytearray(fulllenA.to_bytes(4, byteorder="big"))
+halfWriteA = bMsglenAFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA
+
+#update fields
+initialTimestamp = 1550513768     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
+btimestamp = bytearray(initialTimestamp.to_bytes(4, byteorder="big"))
+cltvDelta = 10
+cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
+htlcMSat = 10000
+htlcMSat = bytearray(htlcMSat.to_bytes(8, byteorder="big"))
+feeBaseMSat = 1000
+feeBaseMSat = bytearray(feeBaseMSat.to_bytes(4, byteorder="big"))
+feePropMill = 1000
+feePropMill = bytearray(feePropMill.to_bytes(4, byteorder="big"))
+WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
+msglenU = 130
+bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
+fulllenU = len(WIRE_GOSSIP_STORE_CHANNEL_UPDATE) + len(bMsglenU) + msglenU  # remember, we don't have checksum and we don't count gossipVersion
+bMsglenUFull = bytearray(fulllenU.to_bytes(4, byteorder="big"))
+halfWriteU = bMsglenUFull + WIRE_GOSSIP_STORE_CHANNEL_UPDATE + bMsglenU
+
+
+GOSSIP_CHANNEL_ANNOUNCEMENT = "announcement"
+GOSSIP_CHANNEL_UPDATE = "update"
 
 def createChannelAnnouncement(channel, scid):
     """
@@ -443,8 +443,4 @@ class ChannelAnnouncement():
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
 
-
-assert(checkGossipFields()==True)
-if __name__ == "__main__":
-    main()
 

@@ -9,37 +9,34 @@ from common import networkClasses
 from common import utility
 import powerLawReg
 import time
-from config import *
 import igraph
 
 
-def main():
-    fp = open(powerLawReg.channelFileName)
+def main(channelNum, maxChannelsPerNode, analysisFile, nodeSaveFile, channelSaveFile, randSeed):
+    fp = open(analysisFile)
     t0 = time.time()
     jn = utility.loadJson(fp)
     t1 = time.time()
     print("json load complete", t1-t0)
-    nodes, channels= utility.jsonToObject(jn)
+    nodes, channels = utility.jsonToObject(jn)
     t0 = time.time()
     targetNetwork = networkClasses.Network(fullConnNodes=nodes)
     targetNetwork.channels = channels
     targetNetwork.analysis.analyze()
     utility.setRandSeed(randSeed)
-    newNodes = nodeDistribution(targetNetwork, channelsToCreate)   # eventually a config command can turn on and off the rand dist
+    newNodes = nodeDistribution(targetNetwork, channelNum, maxChannelsPerNode)   # eventually a config command can turn on and off the rand dist
     t1 = time.time()
     print("nodeDistribution done", t1-t0)
     network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     t2 = time.time()
-    gossipSequence = buildNetworkFast(network)
+    gossipSequence = buildNetworkFast(network, maxChannelsPerNode)
     t3 = time.time()
     print("buildNetworkFast", t3-t2)
     t4 = time.time()
     utility.writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile)
-    t5 = time.time()
-    print("writeNetwork",t5-t4)
-    # draw(network.igraph)
+    return network, gossipSequence    
 
-def buildNetworkFast(network):
+def buildNetworkFast(network, maxChannelsPerNode):
     """
     build network by creating all channels for nodes from largest max channels to smallest max channels.
     No duplicate channels are created between nodes.
@@ -91,7 +88,7 @@ def buildNetworkFast(network):
                     eq = node.nodeid == nodeToConnectId
                 channel = network.createNewChannel(node, nodeToConnect)
                 channel.setScid(utility.getScid(scidBlock, scidTx))
-                scidBlock, scidTx = incrementScid(scidBlock, scidTx)
+                scidBlock, scidTx = incrementScid(scidBlock, scidTx, maxChannelsPerNode)
                 usedLst[node.nodeid] += [nodeToConnectId]
                 usedLst[nodeToConnectId] += [node.nodeid]
                 es += [(node.nodeid, nodeToConnectId)]
@@ -105,11 +102,14 @@ def buildNetworkFast(network):
             if done:
                 break
     ig.add_edges(es)
+    network.fullConnNodes = network.disconnNodes
+    network.disconnNodes = []
+    network.unfullNodes = []
 
     return gossipSequence
 
 
-def incrementScid(height, tx):
+def incrementScid(height, tx, maxChannelsPerNode):
     maxFundingTxPerBlock = 1023
     if tx == maxFundingTxPerBlock:
         tx = 1
@@ -120,7 +120,7 @@ def incrementScid(height, tx):
         raise ValueError("incrementScid: tx cannot be greater than ", str(maxFundingTxPerBlock))
     return height, tx
 
-def nodeDistribution(network, finalNumChannels):
+def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
     """
     There are two ways to choose the distribution of nodes. We can use randomness based on randint and the prob curve
     or we can create nodes exactly with the percentage of the prob curve.
@@ -129,6 +129,8 @@ def nodeDistribution(network, finalNumChannels):
     :param randomDist: if True, we generate with randint. Otherwise generate proportionally.
     :return: node list
     """
+    channelsToCreate = 2 * finalNumChannels
+
     params = network.analysis.powerLaw[0]
     nodes = []
     a,b,c = params[0],params[1],params[2]
@@ -138,7 +140,7 @@ def nodeDistribution(network, finalNumChannels):
     r = random.uniform(0, pMax)
     x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
     channelsForNode = round(x, 0)
-    while channelsForNode > powerLawReg.maxChannelsPerNode:
+    while channelsForNode > maxChannelsPerNode:
         x = powerLawReg.inversePowLawFuncC([r], a, b, c)
         channelsForNode = round(x, 0)
     totalChannels += channelsForNode
@@ -150,7 +152,7 @@ def nodeDistribution(network, finalNumChannels):
         r = random.uniform(0, pMax)
         x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
         channelsForNode = round(x, 0)
-        while channelsForNode > powerLawReg.maxChannelsPerNode:
+        while channelsForNode > maxChannelsPerNode:
             x = powerLawReg.inversePowLawFuncC([r], a, b, c)
             channelsForNode = round(x, 0)
         totalChannels += channelsForNode
@@ -166,8 +168,3 @@ def draw(ig, bbox=(0,0,2000,2000)):
     """
     ig.vs["label"] = ig.vs.indices
     igraph.drawing.plot(ig, bbox=bbox)
-
-
-assert(checkBuildNetworkFields()==True)
-if __name__ == "__main__":
-    main()

@@ -68,8 +68,6 @@ def cluster(nodes, reg=True, params=None, graph=False, completeNetwork=True, bou
     return avgCluster, clusterDict, freqx, clustery, params, covariance
 
 
-
-
 def setMaxChannels(nodes):
     for n in nodes:
         n.setMaxChannels(n.channelCount)
@@ -327,6 +325,3 @@ def testProbDataSumsTo1(y):
     return s == 1
 
 
-assert(checkPowerLawFields()==True)
-if __name__ == "__main__":
-    main()

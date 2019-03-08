@@ -10,10 +10,11 @@ import json
 import os
 import subprocess
 import sys
-from config import *
+
+lightningSourceDir =  ""
+lightningCliDir = lightningSourceDir + "cli/"
 
 #classes
-
 class JsonType:
     """
     Json types
@@ -93,6 +94,12 @@ def scrapeNodesFromJsonCLightning(fp):
             pass
 
     return nodeList 
+
+def checkScrapeConnectedNodesFields():
+    if lightningSourceDir == "":
+        print("Fill lightningdDir in config.py with the path to c-lightning directory. Example: /home/myUser/c-lightning/")
+        return False
+    return True
 
 
 assert(checkScrapeConnectedNodesFields() == True)
