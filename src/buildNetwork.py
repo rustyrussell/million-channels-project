@@ -7,12 +7,12 @@ Builds the network with a backtracking algorithm and network measures defined in
 import random
 from common import networkClasses
 from common import utility
-import powerLawReg
+from analysis import  powerLawReg
 import time
 import igraph
 
 
-def main(channelNum, maxChannelsPerNode, analysisFile, nodeSaveFile, channelSaveFile, randSeed):
+def main(channelNum, maxChannelsPerNode, defaultValue, analysisFile, nodeSaveFile, channelSaveFile, randSeed):
     fp = open(analysisFile)
     t0 = time.time()
     jn = utility.loadJson(fp)
@@ -33,6 +33,9 @@ def main(channelNum, maxChannelsPerNode, analysisFile, nodeSaveFile, channelSave
     t3 = time.time()
     print("buildNetworkFast", t3-t2)
     t4 = time.time()
+    setAllChannelsDefaultValue(network, defaultValue);
+    generateScids(network);
+    #generateChanValues(network);
     utility.writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile)
     return network, gossipSequence    
 
@@ -159,6 +162,20 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
 
     return nodes
 
+
+def setAllChannelsDefaultValue(network, value):
+    """
+    This is a temporary function that simply sets each channel to the same default value
+    :param network: network
+    :param value: value
+    """
+    for channel in network.channels:
+        channel.value = value;
+
+
+def generateScids(network):
+
+    pass
 
 def draw(ig, bbox=(0,0,2000,2000)):
     """

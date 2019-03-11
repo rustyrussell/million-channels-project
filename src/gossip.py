@@ -100,6 +100,7 @@ def genGossip(bundles):
           
         for channel in channels:
             scid = channel.scid
+            value = channel.value
             node1 = channel.node1
             node2 = channel.node2
             if node1 == genNode:
@@ -111,13 +112,13 @@ def genGossip(bundles):
                 crypto.makeKeyOnDemand(otherNode)
 
             a = createChannelAnnouncement(channel, scid)
-            u1, u2 = createChannelUpdates(channel, a, btimestamp, scid)
+            u1, u2 = createChannelUpdates(channel, a, btimestamp, scid, value)
 
             ba = a.serialize(full=True)
             bu1 = u1.serialize(full=True)
             bu2 = u2.serialize(full=True)
   
-            writeList += [(ba, bu1, bu2)]
+            writeList += [((ba, u1.HTLCMaxMSat), bu1, bu2)]
 
             # TODO: write every x number of channels
             if w == 100:
@@ -209,7 +210,7 @@ def createChannelAnnouncement(channel, scid):
 
     return a
 
-def createChannelUpdates(channel, a, timestamp, scid):
+def createChannelUpdates(channel, a, timestamp, scid, value):
     """
     create channel updates for node1 and node2 in a channel
     :param channel: network classes channel obj
@@ -218,16 +219,18 @@ def createChannelUpdates(channel, a, timestamp, scid):
     """
     node1 = channel.node1
     node2 = channel.node2
+    value = channel.value
+    bValue = bytearray(value.to_bytes(8, byteorder="big"))
 
     # #channel updates
     u = ChannelUpdate()
     u.setscid(scid)
     u.setTimestamp(timestamp)
     u.setcltv(cltvDelta)
-    u.sethtlcMSat(htlcMSat)
+    u.setHTLCMSat(htlcMSat)
     u.setFeeBaseMSat(feeBaseMSat)
     u.setFeePropMill(feePropMill)
-
+    u.setHTLCMaxMSat(bValue)
     u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
 
@@ -285,17 +288,18 @@ def writeParallel(writeList):
     """
     l.acquire(block=True)
     for g in writeList:
-        ba = g[0]
+        ba = g[0][0]
+        bValue = g[0][1]
         bu1 = g[1]
         bu2 = g[2]
-        writeChannelAnnouncement(ba, gossipSaveFile)
+        writeChannelAnnouncement(ba, bValue, gossipSaveFile)
         writeChannelUpdate(bu1, gossipSaveFile)
         writeChannelUpdate(bu2, gossipSaveFile)
 
     l.release()
     return
 
-def writeChannelAnnouncement(a, fp):
+def writeChannelAnnouncement(ba, bValue, fp):
     """
     write channel announcement
     :param a: announcement serialized
@@ -304,8 +308,8 @@ def writeChannelAnnouncement(a, fp):
     """
     with open(fp, "ab") as fp:
         fp.write(halfWriteA)
-        fp.write(a)
-        fp.write(bSatoshis)
+        fp.write(ba)
+        fp.write(bValue)
 
 def writeChannelUpdate(u, fp):
     """
@@ -338,7 +342,7 @@ class ChannelUpdate():
         self.cFlags = f
     def setcltv(self, cltv):
         self.cltv = cltv
-    def sethtlcMSat(self, msat):
+    def setHTLCMSat(self, msat):
         self.HTLCMSat = msat
     def setFeeBaseMSat(self, msat):
         self.feeBaseMSat = msat

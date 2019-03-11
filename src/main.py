@@ -13,11 +13,11 @@ def main():
         import config
     overrideConfig(args, config)
     if args.build_only:
-        buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
+        buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.defaultValue, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
     elif args.gossip_only:
         gossip.main(config.randSeed, config.gossipSaveFile, nodeSaveFile=config.nodeSaveFile, channelSaveFile=config.channelSaveFile)
     else:
-        network, gossipSequence = buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
+        network, gossipSequence = buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.defaultValue, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
         gossip.main(config.randSeed, config.gossipSaveFile, network=network, gossipSequence=gossipSequence)
 
     
@@ -29,6 +29,7 @@ def parse():
     parse.add_argument("--name", type=str, required=False)
     parse.add_argument("--channelNum", type=int)
     parse.add_argument("--maxChannelsPerNode", type=int)
+    parse.add_argument("--defaultValue", type=int)
     parse.add_argument("--randSeed", type=int)
     parse.add_argument("--analysisFile", type=str)
     parse.add_argument("--channelSaveFile", type=str)
