@@ -37,6 +37,7 @@ def main(channelNum, maxChannelsPerNode, defaultValue, analysisFile, nodeSaveFil
     #generateScids(network);
     #generateChanValues(network);
     utility.writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile)
+    print(len(network.channels))
     return network, gossipSequence    
 
 def buildNetworkFast(network, maxChannelsPerNode):
@@ -167,7 +168,7 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
         channelsForNode = round(x, 0)
     totalChannels += channelsForNode
 
-    while totalChannels < finalNumChannels:     # this is why I wish python had do-while statements!!!
+    while totalChannels < channelsToCreate:     # this is why I wish python had do-while statements!!!
         n = networkClasses.Node(nodeidCounter, maxChannels=channelsForNode)
         nodes += [n]
         nodeidCounter += 1

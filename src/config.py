@@ -1,7 +1,7 @@
 ###buildNetwork.py###
 # can be changed by user: directories MUST end in backslash
-name = "1000"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
-channelNum = 1000
+name = "1M"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
+channelNum = 1000000
 maxChannelsPerNode = 100000
 defaultValue = 10000
 randSeed = 2

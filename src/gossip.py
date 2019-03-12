@@ -47,7 +47,7 @@ def generateAllGossip(network, rawGossipSequence, fullGossipStoreFlag):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    threadNum = 4
+    threadNum = 25
  
     #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
     #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
