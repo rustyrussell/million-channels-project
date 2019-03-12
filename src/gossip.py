@@ -310,6 +310,8 @@ def writeChannelAnnouncement(ba, bValue, fp, fullGossipStoreFlag):
     with open(fp, "ab") as fp:
         if fullGossipStoreFlag:
             fp.write(halfWriteA)
+        else:
+            fp.write(bMsglenA)
         fp.write(ba)
         fp.write(bValue)
 
@@ -323,6 +325,8 @@ def writeChannelUpdate(u, fp, fullGossipStoreFlag):
     with open(fp, "ab") as fp:
         if fullGossipStoreFlag:
             fp.write(halfWriteU)
+        else:
+            fp.write(bMsglenU)
         fp.write(u)
 
 #classes

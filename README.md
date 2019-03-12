@@ -7,8 +7,11 @@ This network will be used for testing routing algorithms and channel syncing.
 1. A sample of the gossip produced can be found in data/1M/1M.gossip. 
    This file is split into smaller files. To combine files run:
        `cd data/1M/gossip/`
+
        `xz -d xa*`
+
        `cat xa* > ../1M.gossip`
+
 
 2. rename 1M.gossip to gossip_store and copy it into .lightning directory that you are working in. 
 
@@ -38,11 +41,17 @@ This network will be used for testing routing algorithms and channel syncing.
    or as cmdline args (ex. --nodeSaveFile /path/to/file). 
        For 1M network, do the following:
        `cd data/1M/nodes/`
+
        `xz -d xa*`
+
        `cat xa* > ../1M.nodes`
+
        `cd data/1M/channels/`
+
        `xz -d xa*`
+
        `cat xa* > ../1M.channels`
+
     
 
 
