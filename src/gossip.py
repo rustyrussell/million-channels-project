@@ -8,7 +8,7 @@ from copy import deepcopy
 from multiprocessing import Process, Lock
 
 
-def main(randSeed, gossipSaveFile, nodeSaveFile=None, channelSaveFile=None, network=None, gossipSequence=None):
+def main(randSeed, fullGossipStoreFlag, gossipSaveFile, nodeSaveFile=None, channelSaveFile=None, network=None, gossipSequence=None):
     """
     creates and writes all gossip from the files nodeSaveFile and channelSaveFile defined in config 
     Writes this information to gossipSaveFile
@@ -25,12 +25,12 @@ def main(randSeed, gossipSaveFile, nodeSaveFile=None, channelSaveFile=None, netw
 
     initGossip_store(gossipSaveFile)
     t2 = time.time()
-    generateAllGossip(network, gossipSequence)
+    generateAllGossip(network, gossipSequence, fullGossipStoreFlag)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
     return network
 
-def generateAllGossip(network, rawGossipSequence):
+def generateAllGossip(network, rawGossipSequence, fullGossipStoreFlag):
     """
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
@@ -74,7 +74,7 @@ def generateAllGossip(network, rawGossipSequence):
 
     pList = []
     for i in range(0, threadNum):
-        p = Process(target=genGossip, args=(bundles[i],)) 
+        p = Process(target=genGossip, args=(bundles[i],fullGossipStoreFlag)) 
         p.start()
         pList += [p]
     for i in range(0, threadNum):
@@ -83,7 +83,7 @@ def generateAllGossip(network, rawGossipSequence):
 
 l = Lock()
 
-def genGossip(bundles):
+def genGossip(bundles, fullGossipStoreFlag):
     """
     Given bundles, we create annoucements and updates for each channel in each bundle
     Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
@@ -123,14 +123,14 @@ def genGossip(bundles):
 
             # TODO: write every x number of channels
             if w == 100:
-                p = Process(target=writeParallel, args=(writeList,))
+                p = Process(target=writeParallel, args=(writeList,fullGossipStoreFlag))
                 pList += [p]
                 p.start()
                 writeList = []
                 w = 0
             w += 1
         # print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
-    p = Process(target=writeParallel, args=(writeList,))
+    p = Process(target=writeParallel, args=(writeList,fullGossipStoreFlag))
     pList += [p]
     p.start()
     # print("done with thread")
@@ -231,7 +231,7 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     u.setHTLCMSat(htlcMSat)
     u.setFeeBaseMSat(feeBaseMSat)
     u.setFeePropMill(feePropMill)
-    u.setHTLCMaxMSat(bValue)
+    #u.setHTLCMaxMSat(bValue) #TODO: once final capacity generation is inplace, uncomment this line. 
     u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
 
@@ -280,7 +280,7 @@ def initGossip_store(filename):
     fp.write(gossipVersion)
     fp.close()
 
-def writeParallel(writeList):
+def writeParallel(writeList, fullGossipStoreFlag):
     """
     open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
     :param: ba: serialized channel annoucement
@@ -293,14 +293,14 @@ def writeParallel(writeList):
         bValue = g[0][1]
         bu1 = g[1]
         bu2 = g[2]
-        writeChannelAnnouncement(ba, bValue, gossipSaveFile)
-        writeChannelUpdate(bu1, gossipSaveFile)
-        writeChannelUpdate(bu2, gossipSaveFile)
+        writeChannelAnnouncement(ba, bValue, gossipSaveFile, fullGossipStoreFlag)
+        writeChannelUpdate(bu1, gossipSaveFile, fullGossipStoreFlag)
+        writeChannelUpdate(bu2, gossipSaveFile, fullGossipStoreFlag)
 
     l.release()
     return
 
-def writeChannelAnnouncement(ba, bValue, fp):
+def writeChannelAnnouncement(ba, bValue, fp, fullGossipStoreFlag):
     """
     write channel announcement
     :param a: announcement serialized
@@ -308,11 +308,12 @@ def writeChannelAnnouncement(ba, bValue, fp):
     :return: serialized gossip msg
     """
     with open(fp, "ab") as fp:
-        fp.write(halfWriteA)
+        if fullGossipStoreFlag:
+            fp.write(halfWriteA)
         fp.write(ba)
         fp.write(bValue)
 
-def writeChannelUpdate(u, fp):
+def writeChannelUpdate(u, fp, fullGossipStoreFlag):
     """
     write channel update
     :param u: update serialized
@@ -320,7 +321,8 @@ def writeChannelUpdate(u, fp):
     :return: serialized gossip msg
     """
     with open(fp, "ab") as fp:
-        fp.write(halfWriteU)
+        if fullGossipStoreFlag:
+            fp.write(halfWriteU)
         fp.write(u)
 
 #classes

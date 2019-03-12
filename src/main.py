@@ -16,10 +16,10 @@ def main():
     if args.build_only:
         network, gossipSequence = buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.defaultValue, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
     elif args.gossip_only:
-        network = gossip.main(config.randSeed, config.gossipSaveFile, nodeSaveFile=config.nodeSaveFile, channelSaveFile=config.channelSaveFile)
+        network = gossip.main(config.randSeed, config.fullGossipStore, config.gossipSaveFile, nodeSaveFile=config.nodeSaveFile, channelSaveFile=config.channelSaveFile)
     else:
         network, gossipSequence = buildNetwork.main(config.channelNum, config.maxChannelsPerNode, config.defaultValue, config.analysisListChannelsFile, config.nodeSaveFile, config.channelSaveFile, config.randSeed)
-        gossip.main(config.randSeed, config.gossipSaveFile, network=network, gossipSequence=gossipSequence)
+        gossip.main(config.randSeed, config.fullGossipStore, config.gossipSaveFile, network=network, gossipSequence=gossipSequence)
 
     if args.tests: #TODO move to new function
         for n in network.fullConnNodes:
@@ -36,6 +36,7 @@ def parse():
     parse.add_argument("--build_only", action="store_const", const=True)
     parse.add_argument("--gossip_only", action="store_const", const=True)
     parse.add_argument("--draw", action="store_const", const=True)
+    parse.add_argument("--fullGossipStore", action="store_const", const=True)
     parse.add_argument("--tests", action="store_const", const=True)
     parse.add_argument("--config", type=str)
     parse.add_argument("--name", type=str, required=False)
