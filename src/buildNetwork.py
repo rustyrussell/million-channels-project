@@ -15,7 +15,7 @@ import igraph
 def main(channelNum, maxChannelsPerNode, defaultValue, analysisFile, nodeSaveFile, channelSaveFile, randSeed):
     fp = open(analysisFile)
     t0 = time.time()
-    jn = utility.loadJson(fp)
+    jn = utility.loadjson(fp)
     t1 = time.time()
     print("json load complete", t1-t0)
     nodes, channels = utility.jsonToObject(jn)
@@ -33,8 +33,8 @@ def main(channelNum, maxChannelsPerNode, defaultValue, analysisFile, nodeSaveFil
     t3 = time.time()
     print("buildNetworkFast", t3-t2)
     t4 = time.time()
-    setAllChannelsDefaultValue(network, defaultValue);
-    generateScids(network);
+    setAllChannelsDefaultValue(network, defaultValue)
+    #generateScids(network);
     #generateChanValues(network);
     utility.writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile)
     return network, gossipSequence    
@@ -57,14 +57,16 @@ def buildNetworkFast(network, maxChannelsPerNode):
     es = []
     gossipSequence = []
     done = False
-    scidBlock = 1
+    scidHeight = 101 #first 100 blocks are only coinbase
     scidTx = 1
+    nodes[0].setInNetwork(inNetwork=True) #the first node is part of the network by default
     for node in nodes:
         beforeBound = len(network.channels)
         if node.isFull():
             pass
         else:
             channelsToCreate = node.maxChannels - node.channelCount
+            disConnNodes = []
             for i in range(0, int(channelsToCreate)):
                 if len(nodesLeft) - 1 == 0:
                     done = True
@@ -76,7 +78,9 @@ def buildNetworkFast(network, maxChannelsPerNode):
                 nodeToConnectId = nodeToConnect.nodeid
                 b = nodeToConnect.isFull()
                 eq = node.nodeid == nodeToConnectId
-                while b or eq or node.nodeid in usedLst[nodeToConnectId]:
+                disConn = False
+                while disConn or b or eq or node.nodeid in usedLst[nodeToConnectId]:
+                    disConn = False
                     if b:
                         nodesLeft.pop(r)
                     if eq:
@@ -89,9 +93,21 @@ def buildNetworkFast(network, maxChannelsPerNode):
                     nodeToConnectId = nodeToConnect.nodeid
                     b = nodeToConnect.isFull()
                     eq = node.nodeid == nodeToConnectId
+                    if i == (channelsToCreate - 1): #for last channel to connect to, make sure node is in the network
+                        if not node.isInNetwork() and not nodeToConnect.isInNetwork():
+                            disConn = True
+                if node.isInNetwork() and not nodeToConnect.isInNetwork(): #curr node brings new node into the network 
+                    nodeToConnect.setInNetwork(inNetwork=True)
+                elif not node.isInNetwork() and not nodeToConnect.isInNetwork(): #new node and curr node remains disconnected from network
+                    disConnNodes += [nodeToConnect]
+                elif not node.isInNetwork() and nodeToConnect.isInNetwork(): #all disconn nodes join the network
+                    node.setInNetwork(True)
+                    for n in disConnNodes:
+                        n.setInNetwork(True)
+                    disConnNodes = []
                 channel = network.createNewChannel(node, nodeToConnect)
-                channel.setScid(utility.getScid(scidBlock, scidTx))
-                scidBlock, scidTx = incrementScid(scidBlock, scidTx, maxChannelsPerNode)
+                channel.setScid(utility.getScid(scidHeight, scidTx))
+                scidHeight, scidTx = incrementScid(scidHeight, scidTx, maxChannelsPerNode)
                 usedLst[node.nodeid] += [nodeToConnectId]
                 usedLst[nodeToConnectId] += [node.nodeid]
                 es += [(node.nodeid, nodeToConnectId)]
@@ -113,6 +129,9 @@ def buildNetworkFast(network, maxChannelsPerNode):
 
 
 def incrementScid(height, tx, maxChannelsPerNode):
+    """
+    this will change in the future when 
+    """
     maxFundingTxPerBlock = 1023
     if tx == maxFundingTxPerBlock:
         tx = 1
@@ -174,14 +193,5 @@ def setAllChannelsDefaultValue(network, value):
 
 
 def generateScids(network):
-
     pass
 
-def draw(ig, bbox=(0,0,2000,2000)):
-    """
-    draw graph using igraph obj
-    :param ig: igraph obj
-    :return:
-    """
-    ig.vs["label"] = ig.vs.indices
-    igraph.drawing.plot(ig, bbox=bbox)

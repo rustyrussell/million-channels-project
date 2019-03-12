@@ -28,6 +28,7 @@ def main(randSeed, gossipSaveFile, nodeSaveFile=None, channelSaveFile=None, netw
     generateAllGossip(network, gossipSequence)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
+    return network
 
 def generateAllGossip(network, rawGossipSequence):
     """

@@ -1,4 +1,4 @@
-import powerLawReg
+from analysis import powerLawReg
 from igraph import Graph
 from common import utility
 
@@ -8,7 +8,7 @@ class Node:
     """
     Node class
     """
-    def __init__(self, nodeid, maxChannels=None):
+    def __init__(self, nodeid, inNetwork=False, maxChannels=None):
         self.setHasKeys(False)
         self.value = 0
         self.channelCount = 0
@@ -16,6 +16,7 @@ class Node:
         self.nodeid = nodeid
         self.maxChannels = maxChannels
         self.channels = []
+        self.inNetwork = inNetwork
 
     def setHasKeys(self, b):
         """
@@ -45,8 +46,11 @@ class Node:
     def removeChannel(self, channel):
         self.channelCount -= 1
 
-    def inNetwork(self):
-        return self.channelCount > 0
+    def isInNetwork(self):
+        return self.inNetwork
+
+    def setInNetwork(self, inNetwork):
+        self.inNetwork = inNetwork
 
     def isFull(self):
         return self.channelCount >= self.maxChannels
@@ -64,16 +68,16 @@ class Channel:
     """
     Channel class
     """
-    def __init__(self, node1, node2, scid=None, json=None):
+    def __init__(self, node1, node2, value=None, scid=None, json=None):
         self.node1 = node1
         self.node2 = node2
         self.json = json
         self.scid = scid
+        self.value = value #NOTE: value is None when it is not set yet
         if json != None:
             self.channelid = json["short_channel_id"]
             self.value = json["satoshis"]
         else:
-            self.value = 1
             self.channelid = str(self.node1.nodeid) + str(self.node2.nodeid)
 
     def setNode1(self, node1):

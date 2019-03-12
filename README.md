@@ -28,7 +28,7 @@ This network will be used for testing routing algorithms and channel syncing.
 
 2. building the network consists of analyzing a provided network and scaling it up. 
    Therefore, you need your own network data and set analysisListChannelsFile 
-   You can use data provided in data/channels_1-18-18.json.zx (make sure you unzip)
+   You can use data provided in data/channels_1-18-18.json.zx (make sure you unzip).
    To get your own network data to feed into main.py for building the network, run:
    `./lightning-cli listchannels` on a highly connected node. 
    You can use scrapeConnectedNodes.py to help make your node highly connected
@@ -44,6 +44,5 @@ This network will be used for testing routing algorithms and channel syncing.
        `xz -d xa*`
        `cat xa* > ../1M.channels`
     
-3. scrapeConnectedNodes.py: Connects to nodes in lightning network that are scraped from node files
 
 

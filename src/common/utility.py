@@ -7,9 +7,10 @@ import copy
 from pickle import load, dump
 from igraph import Graph
 
+
 # helper functions
 
-def loadJson(fp):
+def loadjson(fp):
     """
     helper function to load json
     :param fp: file object
@@ -17,6 +18,9 @@ def loadJson(fp):
     """
     return json.load(fp)
 
+
+def loadcsv(fp):
+    return 
 
 def search(a, x):
     """
@@ -153,13 +157,13 @@ def getScid(height, tx):
     :param tx: int (between 1 and 1023 inclusive)
     :return:scid bytearray
     """
-
     bheight = bytearray(height.to_bytes(3, "big"))
     btx = bytearray(tx.to_bytes(3, "big"))
     scidOutput = bytearray().fromhex("0001")  # output 1
     bscid = bheight + btx + scidOutput
 
     return bscid
+
 
 def channelMaxSortKey(node):
     """

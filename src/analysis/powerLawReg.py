@@ -9,7 +9,7 @@ from scipy import optimize
 from math import pow
 import numpy as np
 from common import utility
-from common import measures
+from analysis import measures
 import time
 from config import *
 
