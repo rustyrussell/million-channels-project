@@ -5,11 +5,12 @@ channelNum = 1000000
 maxChannelsPerNode = 100000
 defaultValue = 10000
 randSeed = 2
-analysisListChannelsFile = "../data/channels_1-18-18.json"
-channelSaveFile = "../data/" + name + "/" + name + ".channels"
-nodeSaveFile = "../data/" + name + "/" + name + ".nodes"
-gossipSaveFile = "../data/" + name + "/" + name + ".gossip"
-fullGossipStore = False
+saveDir = "../data/"
+analysisFile = saveDir + "channels_1-18-18.json"
+channelSaveFile = saveDir + name + "/" + name + ".channels"
+nodeSaveFile = saveDir + name + "/" + name + ".nodes"
+gossipSaveFile = saveDir + name + "/" + name + ".gossip"
+gossip_store = False
 lightningDataDir = ""
 historicalData = "../data/historical_data.csv"
 

@@ -6,7 +6,7 @@ from random import seed, randint
 import copy
 from pickle import load, dump
 from igraph import Graph
-
+import csv
 
 # helper functions
 
@@ -20,7 +20,15 @@ def loadjson(fp):
 
 
 def loadcsv(fp):
-    return 
+    reader = csv.reader(fp)
+    return reader
+
+
+def getSaveFiles(datadir, name):
+    nodeSaveFile = datadir + name + "/" + name + ".nodes"
+    channelSaveFile = datadir + name + "/" + name + ".channels"
+    gossipSaveFile = datadir + name + "/" + name + ".gossip"
+    return nodeSaveFile, channelSaveFile, gossipSaveFile
 
 def search(a, x):
     """

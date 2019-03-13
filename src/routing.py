@@ -10,15 +10,15 @@ def main():
     SelectParams("regtest")
     argv = sys.argv    #TODO: add argparse 
     if argv[1] == "route": #input a source and destination
-        network, gs = utility.loadNetwork(nodeSaveFile, channelSaveFile)
+        #network, gs = utility.loadNetwork(nodeSaveFile, channelSaveFile)
         si = int(argv[2])  #source
         di = int(argv[3])  #destination
         sPub = getPubKey(si)
         dPub = getPubKey(di)
         routeL = getRouteLightning(sPub, dPub)
         printLightningRoute(routeL, sPub)
-        routesI = getRouteigraph(si, di, network.igraph)
-        printigraphRoutes(routesI)
+        #routesI = getRouteigraph(si, di, network.igraph)
+        #printigraphRoutes(routesI)
 
     elif argv[1] == "avg":  #benchmark shortest routes and find the average
         if len(argv) == 4:  
@@ -37,6 +37,7 @@ def main():
             dPub = getPubKey(r2)
             t0 = time.time()
             routeL = getRouteLightning(sPub, dPub)
+            print(routeL)
             t1 = time.time()
             totHops += len(routeL["route"])
             totTime += t1 - t0
@@ -45,6 +46,24 @@ def main():
         print("avg hops:", avgHops)
         print("avg time:", avgTime)
 
+    elif argv[1] == "all":  #benchmark shortest routes and find the average
+        if len(argv) == 3:  
+            nodeNum = int(argv[2])
+        else:
+            raise ValueError("need more arguments")
+        totTime = 0
+        totHops = 0
+        pubkeylist = []
+        for i in range(0, nodeNum):
+            pubkeylist += [getPubKey(i)]
+    
+        for i in range(0, nodeNum):
+            sPub = pubkeylist[i]
+            for j in range(i, nodeNum):
+                if i != j:
+                    dPub = pubkeylist[j]
+                    routeL = getRouteLightning(sPub, dPub)
+            print("done with", i)
 
 def getPubKey(nodeid):
     pub = bytearray(crypto.compPubKey(crypto.makeSinglePrivKeyNodeId(nodeid))).hex()

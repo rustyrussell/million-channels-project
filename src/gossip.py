@@ -1,5 +1,4 @@
 import os
-from config import *
 from common import utility, crypto
 from bitcoin import SelectParams
 import hashlib
@@ -8,29 +7,29 @@ from copy import deepcopy
 from multiprocessing import Process, Lock
 
 
-def main(randSeed, fullGossipStoreFlag, gossipSaveFile, nodeSaveFile=None, channelSaveFile=None, network=None, gossipSequence=None):
+def main(config, network=None, gossipSequence=None):
     """
     creates and writes all gossip from the files nodeSaveFile and channelSaveFile defined in config 
     Writes this information to gossipSaveFile
     Each channel has 1 channel annoucement and 2 channel updates. Keys and scids are determined determinisically based on node id.
     """
-    utility.setRandSeed(randSeed)
+    utility.setRandSeed(config.randSeed)
     SelectParams("regtest")
     t0 = time.time()
     if network == None:
-        network, gossipSequence = utility.loadNetwork(nodeSaveFile, channelSaveFile)
+        network, gossipSequence = utility.loadNetwork(config.nodeSaveFile, config.channelSaveFile)
         print(len(network.channels))
         t1 = time.time()
         print("loading network complete", t1-t0)
 
-    initGossip_store(gossipSaveFile)
+    initGossip_store(config.gossipSaveFile)
     t2 = time.time()
-    generateAllGossip(network, gossipSequence, fullGossipStoreFlag)
+    generateAllGossip(network, gossipSequence, config)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
     return network
 
-def generateAllGossip(network, rawGossipSequence, fullGossipStoreFlag):
+def generateAllGossip(network, rawGossipSequence, config):
     """
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
@@ -47,7 +46,7 @@ def generateAllGossip(network, rawGossipSequence, fullGossipStoreFlag):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    threadNum = 25
+    threadNum = 4
  
     #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
     #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
@@ -74,7 +73,7 @@ def generateAllGossip(network, rawGossipSequence, fullGossipStoreFlag):
 
     pList = []
     for i in range(0, threadNum):
-        p = Process(target=genGossip, args=(bundles[i],fullGossipStoreFlag)) 
+        p = Process(target=genGossip, args=(bundles[i],config)) 
         p.start()
         pList += [p]
     for i in range(0, threadNum):
@@ -83,7 +82,7 @@ def generateAllGossip(network, rawGossipSequence, fullGossipStoreFlag):
 
 l = Lock()
 
-def genGossip(bundles, fullGossipStoreFlag):
+def genGossip(bundles, config):
     """
     Given bundles, we create annoucements and updates for each channel in each bundle
     Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
@@ -123,14 +122,14 @@ def genGossip(bundles, fullGossipStoreFlag):
 
             # TODO: write every x number of channels
             if w == 100:
-                p = Process(target=writeParallel, args=(writeList,fullGossipStoreFlag))
+                p = Process(target=writeParallel, args=(writeList,config))
                 pList += [p]
                 p.start()
                 writeList = []
                 w = 0
             w += 1
         # print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
-    p = Process(target=writeParallel, args=(writeList,fullGossipStoreFlag))
+    p = Process(target=writeParallel, args=(writeList,config))
     pList += [p]
     p.start()
     # print("done with thread")
@@ -220,8 +219,6 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     """
     node1 = channel.node1
     node2 = channel.node2
-    value = channel.value
-    bValue = bytearray(value.to_bytes(8, byteorder="big"))
 
     # #channel updates
     u = ChannelUpdate()
@@ -231,6 +228,8 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     u.setHTLCMSat(htlcMSat)
     u.setFeeBaseMSat(feeBaseMSat)
     u.setFeePropMill(feePropMill)
+    #value = channel.value
+    #bValue = bytearray(value.to_bytes(8, byteorder="big"))
     #u.setHTLCMaxMSat(bValue) #TODO: once final capacity generation is inplace, uncomment this line. 
     u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
@@ -280,7 +279,7 @@ def initGossip_store(filename):
     fp.write(gossipVersion)
     fp.close()
 
-def writeParallel(writeList, fullGossipStoreFlag):
+def writeParallel(writeList, config):
     """
     open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
     :param: ba: serialized channel annoucement
@@ -293,9 +292,9 @@ def writeParallel(writeList, fullGossipStoreFlag):
         bValue = g[0][1]
         bu1 = g[1]
         bu2 = g[2]
-        writeChannelAnnouncement(ba, bValue, gossipSaveFile, fullGossipStoreFlag)
-        writeChannelUpdate(bu1, gossipSaveFile, fullGossipStoreFlag)
-        writeChannelUpdate(bu2, gossipSaveFile, fullGossipStoreFlag)
+        writeChannelAnnouncement(ba, bValue, config.gossipSaveFile, config.gossip_store)
+        writeChannelUpdate(bu1, config.gossipSaveFile, config.gossip_store)
+        writeChannelUpdate(bu2, config.gossipSaveFile, config.gossip_store)
 
     l.release()
     return
@@ -313,7 +312,7 @@ def writeChannelAnnouncement(ba, bValue, fp, fullGossipStoreFlag):
         else:
             fp.write(bMsglenA)
         fp.write(ba)
-        fp.write(bValue)
+        fp.write(bSatoshis)
 
 def writeChannelUpdate(u, fp, fullGossipStoreFlag):
     """
@@ -451,5 +450,7 @@ class ChannelAnnouncement():
             print("bitcoinKey1", self.bitcoinKey1.hex())
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
+
+class NodeAnnouncement():
 
 
