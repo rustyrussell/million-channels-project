@@ -1,3 +1,4 @@
+import os
 from common import utility, crypto
 from bitcoin import SelectParams
 import hashlib
@@ -14,6 +15,7 @@ def main(config, network=None, gossipSequence=None):
     """
     utility.setRandSeed(config.randSeed)
     SelectParams("regtest")
+    initGossip(config.gossipSaveFile)
     t0 = time.time()
     if network == None:
         network, gossipSequence = utility.loadNetwork(config.nodeSaveFile, config.channelSaveFile)
@@ -253,6 +255,17 @@ def createChannelUpdate(channel, node, u, a):
 
 #writing functions
 
+def initGossip(filename):
+    """
+    initialze gosip store by making a new one and writing gossip store version (3)
+    :param filename: gossip_store filename
+    """
+    if os.path.exists(filename):
+        os.remove(filename)  # delete current generate store if it exists
+        fp = open(filename, "wb")
+        fp.close()
+
+
 def writeParallel(writeList, gossipSaveFile):
     """
     open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
@@ -263,17 +276,16 @@ def writeParallel(writeList, gossipSaveFile):
     l.acquire(block=True)
     for g in writeList:
         ba = g[0][0]
-        bValue = g[0][1]
         bu1 = g[1]
         bu2 = g[2]
-        writeChannelAnnouncement(ba, bValue, gossipSaveFile)
+        writeChannelAnnouncement(ba, gossipSaveFile)
         writeChannelUpdate(bu1, gossipSaveFile)
         writeChannelUpdate(bu2, gossipSaveFile)
 
     l.release()
     return
 
-def writeChannelAnnouncement(ba, bValue, fp):
+def writeChannelAnnouncement(ba, fp):
     """
     write channel announcement
     :param a: announcement serialized
