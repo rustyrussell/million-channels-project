@@ -450,7 +450,3 @@ class ChannelAnnouncement():
             print("bitcoinKey1", self.bitcoinKey1.hex())
             print("bitcoinKey2", self.bitcoinKey2.hex())
 
-
-class NodeAnnouncement():
-
-

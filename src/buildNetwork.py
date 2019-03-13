@@ -209,7 +209,7 @@ def setAllChannelsDefaultValue(network, value):
     :param value: value
     """
     for channel in network.channels:
-        channel.value = value;
+        channel.value = value
 
 
 def generateScids(network):

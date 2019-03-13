@@ -3,6 +3,7 @@ import gossip
 import argparse
 import importlib.util
 from common import graph, utility
+from os import path, mkdir
 
 def main():
     args = parse() 
@@ -14,6 +15,9 @@ def main():
         import config
 
     config = overrideConfig(args, config)
+    dir = config.saveDir + config.name + "/"
+    if not path.exists(dir):
+        mkdir(dir)
     if args.build_only:
         network, targetNetwork, gossipSequence = buildNetwork.main(config)
     elif args.gossip_only:
