@@ -49,7 +49,6 @@ def parse():
     parse.add_argument("--build_only", action="store_const", const=True)
     parse.add_argument("--gossip_only", action="store_const", const=True)
     parse.add_argument("--draw", action="store_const", const=True)
-    parse.add_argument("--gossip_store", action="store_const", const=True)
     parse.add_argument("--tests", action="store_const", const=True)
     parse.add_argument("--analyze", action="store_const", const=True)
     parse.add_argument("--config", type=str)
@@ -82,8 +81,6 @@ def overrideConfig(args, config):
         config.channelNum = args.channelNum
     if args.maxChannelsPerNode != None:
         config.maxChannelsPerNode = args.maxChannelsPerNode
-    if args.gossip_store != None:
-        config.gossip_store = args.gossip_store
     if args.randSeed != None:
         config.randSeed = args.randSeed
     if args.analysisFile != None:

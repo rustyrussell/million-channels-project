@@ -10,7 +10,6 @@ analysisFile = saveDir + "channels_1-18-18.json"
 channelSaveFile = saveDir + name + "/" + name + ".channels"
 nodeSaveFile = saveDir + name + "/" + name + ".nodes"
 gossipSaveFile = saveDir + name + "/" + name + ".gossip"
-gossip_store = False
 lightningDataDir = ""
 historicalData = "../data/historical_data.csv"
 
