@@ -6,6 +6,7 @@ maxChannelsPerNode = 100000
 defaultValue = 10000
 randSeed = 2
 saveDir = "../data/"
+processNum = 4
 analysisFile = saveDir + "channels_1-18-18.json"
 channelSaveFile = saveDir + name + "/" + name + ".channels"
 nodeSaveFile = saveDir + name + "/" + name + ".nodes"

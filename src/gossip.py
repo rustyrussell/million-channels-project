@@ -19,27 +19,48 @@ def main(config, network=None, gossipSequence=None):
     t0 = time.time()
     if network == None:
         network, gossipSequence = utility.loadNetwork(config.nodeSaveFile, config.channelSaveFile)
-        print(len(network.channels))
         t1 = time.time()
         print("loading network complete", t1-t0)
 
-    #TODO REMOVE
-    network.channels[0].setN1ToWrite(True)
+    # for i in range(0, 10):
+    #     node = network.channels[i].node2
+    #     network.channels[i].setN2ToWrite(True)
+    #     print(node.nodeid, node.channelCount)
+    selectNodesWithAnnouncement(network)
+    print(len(network.fullConnNodes))
     t2 = time.time()
-    generateAllGossip(network, gossipSequence, config.gossipSaveFile)
+    generateAllGossip(network, gossipSequence, config.gossipSaveFile, config.processNum)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
 
-    # ns = []
-    # for node in network.fullConnNodes:
-    #     node.nodeCPrivObj = crypto.makeSinglePrivKeyNodeId(node.nodeid)
-    #     node.nodeCompPub = crypto.compPubKey(node.nodeCPrivObj)
-    #     ns += [createNodeAnnouncment(node)]
-    # print(ns)
-
     return network
 
-def generateAllGossip(network, rawGossipSequence, gossipSaveFile):
+
+def selectNodesWithAnnouncement(network):
+    # annNum = 3941
+    # tot = 5014
+    #
+    # npercent = annNum/tot
+    # ipv4percent = 2936/tot
+    # ipv6percent = 112/tot
+    # torvpercent = 86/tot
+    # torv3percent = 115/tot
+    # #THESE DON:'t add up!
+
+    for i in range(0, len(network.channels)):
+        channel = network.channels[i]
+        node1 = channel.node1
+        node2 = channel.node2
+        if not node1.announce:
+            channel.setN1ToWrite(True)
+            node1.hasNodeAnnouncement(True)
+        if not node2.announce:
+            channel.setN2ToWrite(True)
+            node2.hasNodeAnnouncement(True)
+
+
+
+def generateAllGossip(network, rawGossipSequence, gossipSaveFile, processNum):
     """
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
@@ -56,18 +77,16 @@ def generateAllGossip(network, rawGossipSequence, gossipSaveFile):
         bound = bound[1]
         gossipSequence += [(nodes[i], channels[bound[0]:bound[1]])]
 
-    threadNum = 4
- 
-    #if threadNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
+    #if processNum is 5, we allocate seq1 to t1, seq2 to t2 ... seq5 to t5. 
     #Then we set t2 as first, so seq6 to t2, seq7 to t3, seq10 to t1
     #This is a greedy way to get fairly equal load balancing.  
-    tindex = [[] for i in range(0, threadNum)]
-    for i in range(0, threadNum):
+    tindex = [[] for i in range(0, processNum)]
+    for i in range(0, processNum):
         tindex[0] += [i]
-    for i in range(1, threadNum):
+    for i in range(1, processNum):
         tindex[i] = [tindex[i - 1][-1]] + tindex[i - 1][0:-1]
 
-    bundles = [[] for i in range(0, threadNum)]
+    bundles = [[] for i in range(0, processNum)]
 
     i = 0
     j = 0
@@ -75,19 +94,19 @@ def generateAllGossip(network, rawGossipSequence, gossipSaveFile):
         gs = gossipSequence[b]
         ti = tindex[i][j]
         bundles[ti] += [gs]
-        if j == threadNum-1:
+        if j == processNum-1:
             i += 1
         j += 1
-        i = i % threadNum
-        j = j % threadNum
+        i = i % processNum
+        j = j % processNum
 
     pList = []
     l = Lock()
-    for i in range(0, threadNum):
+    for i in range(0, processNum):
         p = Process(target=genGossip, args=(bundles[i],gossipSaveFile, l))
         p.start()
         pList += [p]
-    for i in range(0, threadNum):
+    for i in range(0, processNum):
         pList[i].join()
 
 
@@ -130,11 +149,11 @@ def genGossip(bundles, gossipSaveFile, l):
 
             bn1 = None
             bn2 = None
-            #remove
-            bu1 = None
-            ba = None
-            bu2 = None
-            #remove
+            #
+            # ba = None
+            # bu1 = None
+            # bu2 = None
+
             if channel.n1Write:
                 n1 = createNodeAnnouncment(node1)
                 bn1 = n1.serialize(full=True)
@@ -308,7 +327,7 @@ def createNodeAnnouncment(node):
 
     h = n.hashPartial()
     sig = bytearray(crypto.sign(node.nodeCPrivObj, h))
-    n.setNodeSig1(sig)
+    n.setNodeSig(sig)
 
     return n
 
@@ -528,7 +547,7 @@ class NodeAnnouncment:
         self.setFLen(bytearray(zero.to_bytes(2, "big")))   #starts as 0 features. Functions have to set actual features manually
         self.setFeatures(bytearray())
 
-    def setNodeSig1(self, sig):
+    def setNodeSig(self, sig):
         self.sig = sig
     def setFLen(self, flen):
         self.flen = flen

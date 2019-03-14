@@ -53,7 +53,8 @@ def parse():
     parse.add_argument("--analyze", action="store_const", const=True)
     parse.add_argument("--config", type=str)
     parse.add_argument("--name", type=str, required=False)
-    parse.add_argument("--channelNum", type=int)
+    parse.add_argument("--channels", type=int)
+    parse.add_argument("-p", type=int)
     parse.add_argument("--maxChannelsPerNode", type=int)
     parse.add_argument("--defaultValue", type=int)
     parse.add_argument("--randSeed", type=int)
@@ -77,8 +78,10 @@ def overrideConfig(args, config):
     if args.name != None:
         config.name = args.name
         config.nodeSaveFile, config.channelSaveFile, config.gossipSaveFile = utility.getSaveFiles(config.saveDir, config.name)
-    if args.channelNum != None:
-        config.channelNum = args.channelNum
+    if args.channels != None:
+        config.channelNum = args.channels
+    if args.p != None:
+        config.processNum = args.p
     if args.maxChannelsPerNode != None:
         config.maxChannelsPerNode = args.maxChannelsPerNode
     if args.randSeed != None:
