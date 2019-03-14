@@ -74,6 +74,8 @@ class Channel:
         self.json = json
         self.scid = scid
         self.value = value #NOTE: value is None when it is not set yet
+        self.setN1ToWrite(False)
+        self.setN2ToWrite(False)
         if json != None:
             self.channelid = json["short_channel_id"]
             self.value = json["satoshis"]
@@ -88,6 +90,12 @@ class Channel:
 
     def setScid(self, scid):
         self.scid = scid
+
+    def setN1ToWrite(self, n1Write):
+        self.n1Write = n1Write
+
+    def setN2ToWrite(self, n2Write):
+        self.n2Write = n2Write
 
     def __lt__(self, otherChannel):
         return self.channelid < otherChannel.channelid

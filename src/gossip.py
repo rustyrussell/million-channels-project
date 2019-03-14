@@ -22,10 +22,21 @@ def main(config, network=None, gossipSequence=None):
         print(len(network.channels))
         t1 = time.time()
         print("loading network complete", t1-t0)
+
+    #TODO REMOVE
+    network.channels[0].setN1ToWrite(True)
     t2 = time.time()
     generateAllGossip(network, gossipSequence, config.gossipSaveFile)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
+
+    # ns = []
+    # for node in network.fullConnNodes:
+    #     node.nodeCPrivObj = crypto.makeSinglePrivKeyNodeId(node.nodeid)
+    #     node.nodeCompPub = crypto.compPubKey(node.nodeCPrivObj)
+    #     ns += [createNodeAnnouncment(node)]
+    # print(ns)
+
     return network
 
 def generateAllGossip(network, rawGossipSequence, gossipSaveFile):
@@ -71,17 +82,17 @@ def generateAllGossip(network, rawGossipSequence, gossipSaveFile):
         j = j % threadNum
 
     pList = []
+    l = Lock()
     for i in range(0, threadNum):
-        p = Process(target=genGossip, args=(bundles[i],gossipSaveFile))
+        p = Process(target=genGossip, args=(bundles[i],gossipSaveFile, l))
         p.start()
         pList += [p]
     for i in range(0, threadNum):
         pList[i].join()
 
 
-l = Lock()
 
-def genGossip(bundles, gossipSaveFile):
+def genGossip(bundles, gossipSaveFile, l):
     """
     Given bundles, we create annoucements and updates for each channel in each bundle
     Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
@@ -116,19 +127,33 @@ def genGossip(bundles, gossipSaveFile):
             ba = a.serialize(full=True)
             bu1 = u1.serialize(full=True)
             bu2 = u2.serialize(full=True)
-  
-            writeList += [((ba, u1.HTLCMaxMSat), bu1, bu2)]
+
+            bn1 = None
+            bn2 = None
+            #remove
+            bu1 = None
+            ba = None
+            bu2 = None
+            #remove
+            if channel.n1Write:
+                n1 = createNodeAnnouncment(node1)
+                bn1 = n1.serialize(full=True)
+            if channel.n2Write:
+                n2 = createNodeAnnouncment(node2)
+                bn2 = n2.serialize(full=True)
+
+            writeList += [(ba, (bu1, bu2), (bn1, bn2))]
 
             # TODO: write every x number of channels
             if w == 100:
-                p = Process(target=writeParallel, args=(writeList,gossipSaveFile))
+                p = Process(target=writeProcess, args=(writeList,gossipSaveFile, l))
                 pList += [p]
                 p.start()
                 writeList = []
                 w = 0
             w += 1
         # print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
-    p = Process(target=writeParallel, args=(writeList,gossipSaveFile))
+    p = Process(target=writeProcess, args=(writeList,gossipSaveFile, l))
     pList += [p]
     p.start()
     # print("done with thread")
@@ -141,25 +166,8 @@ def genGossip(bundles, gossipSaveFile):
 
 chainHash = bytearray.fromhex('06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f')
 channelType = bytearray().fromhex("0100") #256
-updateType = bytearray().fromhex("0102") #258
 featureLen = bytearray().fromhex("0000")
 features = bytearray()
-msglenA = 432
-bMsglenA = bytearray(msglenA.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
-
-#update fields
-initialTimestamp = 1550513768     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
-btimestamp = bytearray(initialTimestamp.to_bytes(4, byteorder="big"))
-cltvDelta = 10
-cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
-htlcMSat = 10000
-htlcMSat = bytearray(htlcMSat.to_bytes(8, byteorder="big"))
-feeBaseMSat = 1000
-feeBaseMSat = bytearray(feeBaseMSat.to_bytes(4, byteorder="big"))
-feePropMill = 1000
-feePropMill = bytearray(feePropMill.to_bytes(4, byteorder="big"))
-msglenU = 130
-bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))  # big endian because this is how gossip store loads it
 
 GOSSIP_CHANNEL_ANNOUNCEMENT = "announcement"
 GOSSIP_CHANNEL_UPDATE = "update"
@@ -198,6 +206,20 @@ def createChannelAnnouncement(channel, scid):
 
     return a
 
+
+#update fields
+updateType = bytearray().fromhex("0102") #258
+initialTimestamp = 1550513768     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
+btimestamp = bytearray(initialTimestamp.to_bytes(4, byteorder="big"))
+cltvDelta = 10
+cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
+htlcMSat = 10000
+htlcMSat = bytearray(htlcMSat.to_bytes(8, byteorder="big"))
+feeBaseMSat = 1000
+feeBaseMSat = bytearray(feeBaseMSat.to_bytes(4, byteorder="big"))
+feePropMill = 1000
+feePropMill = bytearray(feePropMill.to_bytes(4, byteorder="big"))
+
 def createChannelUpdates(channel, a, timestamp, scid, value):
     """
     create channel updates for node1 and node2 in a channel
@@ -223,6 +245,7 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
 
     return u1, u2
+
 
 def createChannelUpdate(channel, node, u, a):
     """
@@ -250,7 +273,44 @@ def createChannelUpdate(channel, node, u, a):
     # update for node 1
     s1 = crypto.sign(node.nodeCPrivObj, u.hashPartial())
     u.setSig(s1)
+
     return u
+
+
+nodeType = bytearray().fromhex("0101") #257
+RGBColor = 0    # <--very boring color
+bRGBColor = bytearray(RGBColor.to_bytes(3, "big"))
+addrLen = 1
+bAddrLen = addrLen.to_bytes(2, "big")
+b1Addresses = bytearray([1])
+loopback = bytearray([127,0,0,1,0,42])  # a loopback addr port 127.0.0.1:42 for fun!
+bAddresses = b1Addresses + loopback
+
+def createNodeAnnouncment(node):
+    """
+    make new node announcement for node
+    :param node: node obj
+    :return: node announcement obj
+    """
+    n = NodeAnnouncment()
+    n.setTimestamp(btimestamp)
+    n.setNodeid(node.nodeCompPub)
+    n.setRGBColor(bRGBColor)
+
+    # set alias as nodeid in ascii
+    alias = str(node.nodeid)
+    zeros = 32 - len(alias)
+    zero = "".join(["0" for i in range(0, zeros)])
+    alias = zero + alias
+    n.setAlias(bytearray(alias.encode("utf-8")))
+    n.setAddrLen(bAddrLen)
+    n.setAddresses(bAddresses)
+
+    h = n.hashPartial()
+    sig = bytearray(crypto.sign(node.nodeCPrivObj, h))
+    n.setNodeSig1(sig)
+
+    return n
 
 
 #writing functions
@@ -266,7 +326,14 @@ def initGossip(filename):
         fp.close()
 
 
-def writeParallel(writeList, gossipSaveFile):
+msglenU = 130
+bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))
+msglenA = 432
+bMsglenA = bytearray(msglenA.to_bytes(2, byteorder="big"))
+msglenN = 149
+bMsglenN = bytearray(msglenN.to_bytes(2, byteorder="big"))
+
+def writeProcess(writeList, gossipSaveFile, l):
     """
     open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
     :param: ba: serialized channel annoucement
@@ -275,12 +342,22 @@ def writeParallel(writeList, gossipSaveFile):
     """
     l.acquire(block=True)
     for g in writeList:
-        ba = g[0][0]
-        bu1 = g[1]
-        bu2 = g[2]
-        writeChannelAnnouncement(ba, gossipSaveFile)
-        writeChannelUpdate(bu1, gossipSaveFile)
-        writeChannelUpdate(bu2, gossipSaveFile)
+        ba = g[0]
+        bu1 = g[1][0]
+        bu2 = g[1][1]
+        bn1 = g[2][0]
+        bn2 = g[2][1]
+
+        if ba != None:
+            writeChannelAnnouncement(ba, gossipSaveFile)
+        if bu1 != None:
+            writeChannelUpdate(bu1, gossipSaveFile)
+        if bu2 != None:
+            writeChannelUpdate(bu2, gossipSaveFile)
+        if bn1 != None:
+            writeNodeAnnouncement(bn1, gossipSaveFile)
+        if bn2 != None:
+            writeNodeAnnouncement(bn2, gossipSaveFile)
 
     l.release()
     return
@@ -296,7 +373,7 @@ def writeChannelAnnouncement(ba, fp):
         fp.write(bMsglenA)
         fp.write(ba)
 
-def writeChannelUpdate(u, fp):
+def writeChannelUpdate(bu, fp):
     """
     write channel update
     :param u: update serialized
@@ -305,7 +382,21 @@ def writeChannelUpdate(u, fp):
     """
     with open(fp, "ab") as fp:
         fp.write(bMsglenU)
-        fp.write(u)
+        fp.write(bu)
+
+
+WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
+def writeNodeAnnouncement(bn, fp):
+    """
+    write channel update
+    :param u: update serialized
+    :param fp: file pointer
+    :return: serialized gossip msg
+    """
+    with open(fp, "ab") as fp:
+        fp.write(bMsglenN)
+        fp.write(bn)
+
 
 #classes
 
@@ -345,6 +436,7 @@ class ChannelUpdate():
             return updateType + self.sig + chainHash + self.scid + self.timestamp + self.mFlags + \
                    self.cFlags + self.cltv + self.HTLCMSat + self.feeBaseMSat + \
                    self.feePropMill + self.HTLCMaxMSat
+
     def hashPartial(self):
         # we take the double sha
         p = self.serialize(False)
@@ -378,9 +470,6 @@ class ChannelAnnouncement():
         self.bitcoinKey1 = bitcoinKey1
     def setBitcoinKey2(self, bitcoinKey2):
         self.bitcoinKey2 = bitcoinKey2
-
-    # def preserialize(self):
-    #     self.preserialize = self.featureLen.extend(chainHash)
 
     def serialize(self, full):
         if not full:
@@ -428,4 +517,60 @@ class ChannelAnnouncement():
             print("id2:", self.id2.hex())
             print("bitcoinKey1", self.bitcoinKey1.hex())
             print("bitcoinKey2", self.bitcoinKey2.hex())
+
+
+
+
+class NodeAnnouncment:
+
+    def __init__(self):
+        zero = 0
+        self.setFLen(bytearray(zero.to_bytes(2, "big")))   #starts as 0 features. Functions have to set actual features manually
+        self.setFeatures(bytearray())
+
+    def setNodeSig1(self, sig):
+        self.sig = sig
+    def setFLen(self, flen):
+        self.flen = flen
+    def setFeatures(self, features):
+        self.features = features
+    def setTimestamp(self, timestamp):
+        self.timestamp = timestamp
+    def setNodeid(self, id1):
+        self.id = id1
+    def setRGBColor(self, color):
+        self.color = color
+    def setAlias(self, alias):
+        self.alias = alias
+    def setAddrLen(self, addrLen):
+        self.addrLen = addrLen
+    def setAddresses(self, addresses):
+        self.addresses = addresses
+
+    def addressListToBytes(self, addresses):
+        #TODO may not need
+        if len(addresses) == 0:
+            return bytearray()
+        else:
+            addrs = bytearray()
+            for a in addresses:
+                addrs += a  
+
+    def hashPartial(self):
+        """
+        hash partial announcement
+        :return: hash digest in python bytes type
+        """
+        a = self.serialize(False)
+        h = hashlib.sha256(a).digest()
+        hh = hashlib.sha256(h).digest()
+        return hh
+
+    def serialize(self, full):
+        if not full:
+            n = self.flen + self.features + self.timestamp + self.id + self.color + self.alias + self.addrLen + self.addresses
+        else:
+            n = nodeType + self.sig + self.flen + self.features + self.timestamp + self.id + self.color + self.alias + self.addrLen + self.addresses
+        return n
+
 

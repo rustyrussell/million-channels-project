@@ -1,6 +1,6 @@
 from random import randint
 import common.wif as wif
-from bitcoin.wallet import CBitcoinSecret
+from bitcoin.wallet import CBitcoinSecret, P2PKHBitcoinAddress
 
 
 #cryptography functions
@@ -54,6 +54,12 @@ def compPubKey(keyObj):
     keyObj._cec_key.set_compressed(True)
     pubbits = keyObj._cec_key.get_pubkey()
     return pubbits
+
+def getAddr(pub):
+    addrObj = P2PKHBitcoinAddress.from_pubkey(pub)
+    addr = addrObj.hex()
+    #TODO: add prefix https://en.bitcoin.it/wiki/List_of_address_prefixes
+    return addr
 
 def generateNewSecretKey():
     """
