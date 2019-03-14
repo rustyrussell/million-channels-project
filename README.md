@@ -12,15 +12,23 @@ This network will be used for testing routing algorithms and channel syncing.
 
        `cat xa* > ../1M.gossip`
 
+2. Clone this fork and switch to guilt/store-load-optimize branch
 
-2. rename 1M.gossip to gossip_store and copy it into .lightning directory that you are working in. 
+       `git clone https://github.com/rustyrussell/lightning.git`
+       
+       `cd lightning`
+       
+       `./configure --enable-developer && make`
+       
+       `git checkout guilt/store-load-optimize`
+       
+       `cd devtools`
+       
+       `./create-gossipstore --verbose 10000 -i /path/to/gossip -o ~/path/to/.lightning-datadir`
 
-3. You MUST use this fork of c-lightning: https://github.com/nettijoe96/lightning 
-    Compile with:
-    `./configure --enable-MCP`
 
-4. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
-    `./lightning-cli listchannels` should return ~1M channels  
+3. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
+    `./lightning-cli listchannels` <-- should return ~1M channels  
 
 ### Generating network or gossip from scratch
 

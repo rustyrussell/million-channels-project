@@ -7,10 +7,9 @@ Builds the network with a backtracking algorithm and network measures defined in
 import random
 from common import networkClasses
 from common import utility
-from analysis import  powerLawReg
+from analysis import powerLawReg, fundingReg
 import time
 from numpy.random import shuffle
-import igraph
 
 
 def buildNetwork(config):
@@ -34,7 +33,6 @@ def buildNetwork(config):
     t3 = time.time()
     # print("buildNetworkFast", t3-t2)
 
-#    selectNodesWithAnnouncement(network)
     buildNodeDetails(targetNetwork, targetChannels, config, network)
     buildChannelDetails(targetNetwork, targetChannels, config)
     utility.writeNetwork(network, gossipSequence, config.nodeSaveFile, config.channelSaveFile)
@@ -138,65 +136,11 @@ def buildNodeDetails(targetNetwork, targetChannels, config, network=None):
 
 def buildChannelDetails(targetNetwork, targetChannels, config, network=None):   #TODO add network as param
 
+    # run funding reg
+    # channels that connect hubs are set to high capacity as determined by funding reg
+    # for the rest of the channels, find channel on reg line and
 
-
-    # print(len(matches))
-    # print(len(targetNetwork.fullConnNodes))
-
-    # #figures out if node announcements always come in pairs.
-    # zeroNA = 0
-    # node1NA = 0
-    # node2NA = 0
-    # twoNA = 0
-    # for channels in targetChannels:
-    #     node1id = channels.node1.nodeid
-    #     node2id = channels.node2.nodeid
-    #     node1 = False
-    #     node2 = False
-    #     for na in matches:
-    #         if node1id == na[0]["nodeid"]:
-    #             node1 = True
-    #         if node2id == na[0]["nodeid"]:
-    #             node2 = True
-    #     if node1 and node2:
-    #         twoNA += 1
-    #     elif node1:
-    #         node1NA += 1
-    #     elif node2:
-    #         node2NA += 1
-    #     else:
-    #         zeroNA += 1
-
-    # print("zero:", zeroNA, "node1", node1NA, "node2", node2NA, "both", twoNA)
-    print(len(matches))
     return
-
-
-
-
-
-
-def selectNodesWithAnnouncement(network):
-    # annNum = 3941
-    # tot = 5014
-    #
-    # npercent = annNum/tot
-    # ipv4percent = 2936/tot
-    # ipv6percent = 112/tot
-    # torvpercent = 86/tot
-    # torv3percent = 115/tot
-    # #THESE DON:'t add up!
-
-    for i in range(0, len(network.channels)):
-        channel = network.channels[i]
-        node1 = channel.node1
-        node2 = channel.node2
-        if not node1.announce:
-            channel.setN1ToWrite(True)
-            node1.hasNodeAnnouncement(True)
-        if not node2.announce:
-            channel.setN2ToWrite(True)
-            node2.hasNodeAnnouncement(True)
 
 
 def buildEdges(network, maxChannelsPerNode):
