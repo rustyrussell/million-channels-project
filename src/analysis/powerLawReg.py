@@ -21,11 +21,11 @@ def main():
     Opens json file, creates node and channel objects objects, runs gini coefficient and power log tests.
     :return:
     """
-    fp = open(channelFileName)
-    jn = utility.loadJson(fp)
+    fp = open(listchannelsFile)
+    jn = utility.loadjson(fp)
 
     #experiments
-    nodes, channels = utility.jsonToObject(jn)
+    nodes, channels = utility.listchannelsJsonToObject(jn)
     # #power law
     # params, covariance, x, y = powerLawExperiment(nodes, graph=True, completeNetwork=True)
     # print("power Law experiment results: ")
@@ -199,9 +199,7 @@ def removeOutliers(x, y, nodeNumber):
     :param y:
     :return:
     """
-
-    # x= x[0:-5]
-    # y = y[0:-5]
+    #this functionality is disabled.
     return x, y, nodeNumber
 
 def powerLawRegressionParam(x, y):

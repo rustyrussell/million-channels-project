@@ -42,7 +42,7 @@ def search(a, x):
         return i
     return -1
 
-def jsonToObject(jn):
+def listchannelsJsonToObject(jn):
     """
     Loads json that is from running the listchannels rpccommand and saving the output.
     Uses binary search and sorted lists for faster loading
@@ -91,6 +91,11 @@ def jsonToObject(jn):
             bisect.insort_left(channels, channelObj)
 
     return nodes, channels
+
+
+def listnodesJsonToObject(jn):
+    nodesJson = jn["nodes"]
+    return nodesJson
 
 def writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile):
     """

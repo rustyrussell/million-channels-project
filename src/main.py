@@ -19,11 +19,11 @@ def main():
     if not path.exists(dir):
         mkdir(dir)
     if args.build_only:
-        network, targetNetwork, gossipSequence = buildNetwork.main(config)
+        network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config)
     elif args.gossip_only:
         network = gossip.main(config)
     else:
-        network, targetNetwork, gossipSequence = buildNetwork.main(config)
+        network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config)
         network = gossip.main(config, network=network, gossipSequence=gossipSequence)
 
     if args.tests: #TODO move to new function
@@ -59,7 +59,8 @@ def parse():
     parse.add_argument("--defaultValue", type=int)
     parse.add_argument("--randSeed", type=int)
     parse.add_argument("--saveDir", type=str, required=False)
-    parse.add_argument("--analysisFile", type=str)
+    parse.add_argument("--listchannelsFile", type=str)
+    parse.add_argument("--listnodesFile", type=str)
     parse.add_argument("--channelSaveFile", type=str)
     parse.add_argument("--nodeSaveFile", type=str)
     parse.add_argument("--gossipSaveFile", type=str)
@@ -86,8 +87,8 @@ def overrideConfig(args, config):
         config.maxChannelsPerNode = args.maxChannelsPerNode
     if args.randSeed != None:
         config.randSeed = args.randSeed
-    if args.analysisFile != None:
-        config.analysisFile = args.analysisFile
+    if args.listchannelsFile != None:
+        config.listchannelsFile = args.listchannelsFile
     if args.channelSaveFile != None:
         config.channelSaveFile = args.channelSaveFile
     if args.nodeSaveFile != None:

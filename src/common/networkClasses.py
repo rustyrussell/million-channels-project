@@ -17,7 +17,8 @@ class Node:
         self.maxChannels = maxChannels
         self.channels = []
         self.inNetwork = inNetwork
-        self.hasNodeAnnouncement(False)
+        self.setAnnounce(False)
+        self.addrType = None
 
     def setHasKeys(self, b):
         """
@@ -50,8 +51,11 @@ class Node:
     def isInNetwork(self):
         return self.inNetwork
 
-    def hasNodeAnnouncement(self, b):
+    def setAnnounce(self, b):
         self.announce = b
+
+    def setAddrType(self, addrType): #None means no address
+        self.addrType = addrType
 
     def setInNetwork(self, inNetwork):
         self.inNetwork = inNetwork

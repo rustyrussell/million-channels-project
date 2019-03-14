@@ -9,19 +9,20 @@ from common import networkClasses
 from common import utility
 from analysis import  powerLawReg
 import time
+from numpy.random import shuffle
 import igraph
 
 
-def main(config):
-    fp = open(config.analysisFile)
+def buildNetwork(config):
+    fp = open(config.listchannelsFile)
     t0 = time.time()
     jn = utility.loadjson(fp)
     t1 = time.time()
     print("json load complete", t1-t0)
-    nodes, channels = utility.jsonToObject(jn)
+    targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
     t0 = time.time()
-    targetNetwork = networkClasses.Network(fullConnNodes=nodes)
-    targetNetwork.channels = channels
+    targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
+    targetNetwork.channels = targetChannels
     targetNetwork.analysis.analyze()
     utility.setRandSeed(config.randSeed)
     newNodes = nodeDistribution(targetNetwork, config.channelNum, config.maxChannelsPerNode)   # eventually a config command can turn on and off the rand dist
@@ -29,17 +30,176 @@ def main(config):
     print("nodeDistribution done", t1-t0)
     network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
     t2 = time.time()
-    gossipSequence = buildNetworkFast(network, config.maxChannelsPerNode)
+    gossipSequence = buildEdges(network, config.maxChannelsPerNode)
     t3 = time.time()
-    print("buildNetworkFast", t3-t2)
-    t4 = time.time()
-    #setAllChannelsDefaultValue(network, defaultValue)
-    #generateScids(network);
-    #generateChanValues(network);
-    utility.writeNetwork(network, gossipSequence, config.nodeSaveFile, config.channelSaveFile)
-    return network, targetNetwork, gossipSequence    
+    # print("buildNetworkFast", t3-t2)
 
-def buildNetworkFast(network, maxChannelsPerNode):
+#    selectNodesWithAnnouncement(network)
+    buildNodeDetails(targetNetwork, targetChannels, config, network)
+    buildChannelDetails(targetNetwork, targetChannels, config)
+    utility.writeNetwork(network, gossipSequence, config.nodeSaveFile, config.channelSaveFile)
+    return network, targetNetwork, gossipSequence
+
+
+
+def buildNodeDetails(targetNetwork, targetChannels, config, network=None):
+    """
+    :param targetNetwork:
+    :param targetChannels:
+    :param config:
+    :param network:
+    :return:
+    """
+    fp = open(config.listnodesFile)
+    jn = utility.loadjson(fp)
+    targetNodesJson = utility.listnodesJsonToObject(jn)
+
+    # filter out node announcements that don't correspond to any channel announcement
+    matches = []
+    for nodeJson in targetNodesJson:
+        nodeid = nodeJson["nodeid"]
+        for node in targetNetwork.fullConnNodes:
+            if node.nodeid == nodeid:
+                matches += [(nodeJson, node)]
+                break
+            else:
+                continue
+
+    # scan through node announcements and seperate them into type
+    ipv4 = 0
+    ipv6 = 0
+    torv2 = 0
+    torv3 = 0
+    noAddr = 0
+    noNodeAnnounce = 0
+    naLen = len(matches)
+    for na in matches:
+        try:
+            addrs = na[0]["addresses"]
+            if len(addrs) == 0:
+                noAddr += 1
+            else:
+                t = addrs[0]["type"]
+                if t == "ipv4":
+                    ipv4 += 1
+                elif t == "ipv6":
+                    ipv6 += 1
+                elif t == "torv2":
+                    torv2 += 1
+                elif t == "torv3":
+                    torv3 += 1
+        except KeyError:
+            noNodeAnnounce += 1
+
+    nodesCopy = network.fullConnNodes.copy()
+    nodeNum = len(nodesCopy)
+    shuffle(nodesCopy)
+    shuffledNodes = nodesCopy
+
+    ipv4NodeNum = round((ipv4/naLen)*nodeNum)
+    ipv6NodeNum = round((ipv6/naLen)*nodeNum)
+    torv2NodeNum = round((torv2/naLen)*nodeNum)
+    torv3NodeNum = round((torv3/naLen)*nodeNum)
+    noAddr = round((noAddr/naLen)*nodeNum)
+
+    i = 0
+    for j in range (i, ipv4NodeNum):
+        node = shuffledNodes[j]
+        node.setAddrType("ipv4")
+        node.setAnnounce(True)
+    i += ipv4NodeNum
+    for j in range (i, ipv6NodeNum):
+        node = shuffledNodes[j]
+        node.setAddrType("ipv6")
+        node.setAnnounce(True)
+    i += ipv6NodeNum
+    for j in range (i, torv2NodeNum):
+        node = shuffledNodes[j]
+        node.setAddrType("torv2")
+        node.setAnnounce(True)
+    i += torv2NodeNum
+    for j in range (i, torv3NodeNum):
+        node = shuffledNodes[j]
+        node.setAddrType("torv3")
+        node.setAnnounce(True)
+    i += torv3NodeNum
+    for j in range (i, noAddr):
+        node = shuffledNodes[j]
+        node.setAddrType(None)
+        node.setAnnounce(True)
+    i += noAddr
+    for j in range (i, len(shuffledNodes)):
+        node = shuffledNodes[j]
+        node.setAddrType(None)
+        node.setAnnounce(False)
+
+    print("details")
+
+
+def buildChannelDetails(targetNetwork, targetChannels, config, network=None):   #TODO add network as param
+
+
+
+    # print(len(matches))
+    # print(len(targetNetwork.fullConnNodes))
+
+    # #figures out if node announcements always come in pairs.
+    # zeroNA = 0
+    # node1NA = 0
+    # node2NA = 0
+    # twoNA = 0
+    # for channels in targetChannels:
+    #     node1id = channels.node1.nodeid
+    #     node2id = channels.node2.nodeid
+    #     node1 = False
+    #     node2 = False
+    #     for na in matches:
+    #         if node1id == na[0]["nodeid"]:
+    #             node1 = True
+    #         if node2id == na[0]["nodeid"]:
+    #             node2 = True
+    #     if node1 and node2:
+    #         twoNA += 1
+    #     elif node1:
+    #         node1NA += 1
+    #     elif node2:
+    #         node2NA += 1
+    #     else:
+    #         zeroNA += 1
+
+    # print("zero:", zeroNA, "node1", node1NA, "node2", node2NA, "both", twoNA)
+    print(len(matches))
+    return
+
+
+
+
+
+
+def selectNodesWithAnnouncement(network):
+    # annNum = 3941
+    # tot = 5014
+    #
+    # npercent = annNum/tot
+    # ipv4percent = 2936/tot
+    # ipv6percent = 112/tot
+    # torvpercent = 86/tot
+    # torv3percent = 115/tot
+    # #THESE DON:'t add up!
+
+    for i in range(0, len(network.channels)):
+        channel = network.channels[i]
+        node1 = channel.node1
+        node2 = channel.node2
+        if not node1.announce:
+            channel.setN1ToWrite(True)
+            node1.hasNodeAnnouncement(True)
+        if not node2.announce:
+            channel.setN2ToWrite(True)
+            node2.hasNodeAnnouncement(True)
+
+
+def buildEdges(network, maxChannelsPerNode):
     """
     build network by creating all channels for nodes from largest max channels to smallest max channels.
     No duplicate channels are created between nodes.
@@ -130,8 +290,6 @@ def buildNetworkFast(network, maxChannelsPerNode):
                     break
             afterBound = len(network.channels)
 
-            if disConnNodes != []:
-                print("dissconn great than empty")
             #record gossip sequence
             if beforeBound-afterBound == 0:
                 pass
@@ -180,10 +338,13 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
     totalChannels = 0
     pMax = powerLawReg.powerLawFuncC([1], a, b, c)[0]
     r = random.uniform(0, pMax)
+    # r = random.uniform(0, 1)
     x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
     channelsForNode = round(x, 0)
-    while channelsForNode > maxChannelsPerNode:
-        x = powerLawReg.inversePowLawFuncC([r], a, b, c)
+    while channelsForNode > maxChannelsPerNode or channelsForNode < 1:
+        r = random.uniform(0, pMax)
+        # r = random.uniform(0, 1)
+        x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
         channelsForNode = round(x, 0)
     totalChannels += channelsForNode
 
@@ -192,10 +353,13 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
         nodes += [n]
         nodeidCounter += 1
         r = random.uniform(0, pMax)
+        # r = random.uniform(0, 1)
         x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
         channelsForNode = round(x, 0)
-        while channelsForNode > maxChannelsPerNode:
-            x = powerLawReg.inversePowLawFuncC([r], a, b, c)
+        while channelsForNode > maxChannelsPerNode or channelsForNode < 1:
+            r = random.uniform(0, pMax)
+            # r = random.uniform(0, 1)
+            x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
             channelsForNode = round(x, 0)
         totalChannels += channelsForNode
 

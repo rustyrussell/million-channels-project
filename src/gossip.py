@@ -22,11 +22,6 @@ def main(config, network=None, gossipSequence=None):
         t1 = time.time()
         print("loading network complete", t1-t0)
 
-    # for i in range(0, 10):
-    #     node = network.channels[i].node2
-    #     network.channels[i].setN2ToWrite(True)
-    #     print(node.nodeid, node.channelCount)
-    selectNodesWithAnnouncement(network)
     print(len(network.fullConnNodes))
     t2 = time.time()
     generateAllGossip(network, gossipSequence, config.gossipSaveFile, config.processNum)
@@ -34,30 +29,6 @@ def main(config, network=None, gossipSequence=None):
     print("generating/writing gossip complete", t3-t2)
 
     return network
-
-
-def selectNodesWithAnnouncement(network):
-    # annNum = 3941
-    # tot = 5014
-    #
-    # npercent = annNum/tot
-    # ipv4percent = 2936/tot
-    # ipv6percent = 112/tot
-    # torvpercent = 86/tot
-    # torv3percent = 115/tot
-    # #THESE DON:'t add up!
-
-    for i in range(0, len(network.channels)):
-        channel = network.channels[i]
-        node1 = channel.node1
-        node2 = channel.node2
-        if not node1.announce:
-            channel.setN1ToWrite(True)
-            node1.hasNodeAnnouncement(True)
-        if not node2.announce:
-            channel.setN2ToWrite(True)
-            node2.hasNodeAnnouncement(True)
-
 
 
 def generateAllGossip(network, rawGossipSequence, gossipSaveFile, processNum):
