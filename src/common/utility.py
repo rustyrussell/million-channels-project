@@ -56,8 +56,7 @@ def listchannelsJsonToObject(jn):
         currChannel = channelsJson[i]
         nodeid1 = channelsJson[i]["source"]
         nodeid2 = channelsJson[i]["destination"]
-        channelObj = networkClasses.Channel(None, None, json=currChannel)
-
+        channelObj = networkClasses.Channel(None, None, json=currChannel, value=currChannel["satoshis"])
         nodeObj1 = networkClasses.Node(nodeid1)
         nodeObj2 = networkClasses.Node(nodeid2)
 
@@ -85,7 +84,9 @@ def listchannelsJsonToObject(jn):
             channelObj.setNode1(nodeObj1)
             channelObj.setNode2(nodeObj2)
             nodeObj1.addChannel(channelObj)
+            nodeObj1.addValue(int(currChannel["satoshis"]))
             nodeObj2.addChannel(channelObj)
+            nodeObj2.addValue(int(currChannel["satoshis"]))
             bisect.insort_left(nodeObj1.channels, channelObj)
             bisect.insort_left(nodeObj2.channels, channelObj)
             bisect.insort_left(channels, channelObj)

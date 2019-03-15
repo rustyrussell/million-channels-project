@@ -31,19 +31,18 @@ def buildNetwork(config):
     t2 = time.time()
     gossipSequence = buildEdges(network, config.maxChannelsPerNode)
     t3 = time.time()
-    # print("buildNetworkFast", t3-t2)
+    print("buildNetworkFast", t3-t2)
 
-    buildNodeDetails(targetNetwork, targetChannels, config, network)
-    buildChannelDetails(targetNetwork, targetChannels, config)
+    buildNodeDetails(targetNetwork, config, network)
+    #buildChannelDetails(targetNetwork, config)
     utility.writeNetwork(network, gossipSequence, config.nodeSaveFile, config.channelSaveFile)
     return network, targetNetwork, gossipSequence
 
 
 
-def buildNodeDetails(targetNetwork, targetChannels, config, network=None):
+def buildNodeDetails(targetNetwork, config, network=None):
     """
     :param targetNetwork:
-    :param targetChannels:
     :param config:
     :param network:
     :return:
@@ -51,7 +50,6 @@ def buildNodeDetails(targetNetwork, targetChannels, config, network=None):
     fp = open(config.listnodesFile)
     jn = utility.loadjson(fp)
     targetNodesJson = utility.listnodesJsonToObject(jn)
-
     # filter out node announcements that don't correspond to any channel announcement
     matches = []
     for nodeJson in targetNodesJson:
@@ -131,14 +129,14 @@ def buildNodeDetails(targetNetwork, targetChannels, config, network=None):
         node.setAddrType(None)
         node.setAnnounce(False)
 
-    print("details")
-
-
-def buildChannelDetails(targetNetwork, targetChannels, config, network=None):   #TODO add network as param
+def buildChannelDetails(targetNetwork, config, network=None):   #TODO add network as param
 
     # run funding reg
     # channels that connect hubs are set to high capacity as determined by funding reg
     # for the rest of the channels, find channel on reg line and
+
+    params = targetNetwork.analysis.fundingReg
+
 
     return
 

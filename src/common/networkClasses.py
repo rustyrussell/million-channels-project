@@ -1,6 +1,7 @@
 from analysis import powerLawReg
 from igraph import Graph
 from common import utility
+from analysis import fundingReg
 
 #classes
 
@@ -19,6 +20,7 @@ class Node:
         self.inNetwork = inNetwork
         self.setAnnounce(False)
         self.addrType = None
+        self.value = 0
 
     def setHasKeys(self, b):
         """
@@ -38,6 +40,9 @@ class Node:
 
     def setBitcoinCompPub(self, compPub):
         self.bitcoinCompPub = compPub
+
+    def addValue(self, value):
+        self.value += value
 
     def addChannel(self, channel):
         self.channelCount += 1
@@ -236,8 +241,8 @@ class Analysis:
     def analyze(self):
         params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=False, completeNetwork=True)   #only fully connected nodes get analyzed
         self.powerLaw = (params, covariance, x, yProb)
-        # avgCluster, clusterDict, freqx, clustery, params, covariance = powerLawReg.cluster(self.network.fullConnNodes, graph=False, completeNetwork=True, bounds=(0, 1000, 1))
-        # self.cluster = (clusterDict, freqx, clustery, params, covariance)
+        params2, covariance2 = fundingReg.fundingRegExperiment(self.network.getNodes(), self.network.channels)
+        self.fundingReg = (params2, covariance2)
 
     def betweenness(self):
         """

@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from scipy import optimize
 from math import pow
 import numpy as np
-from common import utility
+from common import utility, graph as g
 from analysis import measures
 import time
 from config import *
@@ -57,7 +57,7 @@ def cluster(nodes, reg=True, params=None, graph=False, completeNetwork=True, bou
     if reg:
         params, covariance = negExpRegParam(freqx,clustery)
     if graph:
-        simpleFreqPlot(freqx, clustery)
+        g.simpleFreqPlot(freqx, clustery)
         plotNegExp(negExpFunc, params, bounds)
         plt.autoscale()
         plt.show()
@@ -89,7 +89,7 @@ def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwor
         c, cProb = findBestC(params[0], params[1])
         params = [params[0], params[1], c]
     if graph:    #for plotting power law curve from experiment against new nodes scatterplot (called in build network)
-        simpleFreqPlot(x, yProb)
+        g.simpleFreqPlot(x, yProb)
         plotPowLaw(powerLawFuncC, params, bounds)
         plt.autoscale()
         plt.show()
@@ -247,28 +247,6 @@ def findBestC(a, b):
         cProb = sum(y)
         if cProb > 1: break
     return bestC, bestCProb
-
-
-
-
-
-#graphing
-
-def simpleFreqPlot(x, y, xscale=False, yscale=False):
-    """
-    Create simple scatterplot in matplotlib library
-    :param x: x list
-    :param y: y list
-    :param xscale: bool log scale on x axis
-    :param yscale: bool log scale on y axis
-    :return:
-    """
-    plt.scatter(x, y)
-
-    if xscale:
-        plt.xscale('log')      # this axis scales in log better than y-axis log scale
-    if yscale:
-        plt.yscale('log')
 
 
 def plotPowLaw(func, params, rangeTup):
