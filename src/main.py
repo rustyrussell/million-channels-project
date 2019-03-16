@@ -37,10 +37,10 @@ def main():
 
     if args.analyze:
         print("power log: c*((x+b)^-a)")
-        print("target network power log:", targetNetwork.analysis.powerLaw[0])
+        print("target network power law:", targetNetwork.analysis.powerLaw[0])
         network.analysis.analyze()
         
-        print("new network power log:", network.analysis.powerLaw[0])
+        print("new network power law:", network.analysis.powerLaw[0])
         print("new network betweenness:", network.analysis.betweenness())
 
 
@@ -61,9 +61,10 @@ def parse():
     parse.add_argument("--saveDir", type=str, required=False)
     parse.add_argument("--listchannelsFile", type=str)
     parse.add_argument("--listnodesFile", type=str)
-    parse.add_argument("--channelSaveFile", type=str)
-    parse.add_argument("--nodeSaveFile", type=str)
-    parse.add_argument("--gossipSaveFile", type=str)
+    parse.add_argument("--channelFile", type=str)
+    parse.add_argument("--scidSatoshisFile", type=str)
+    parse.add_argument("--nodeFile", type=str)
+    parse.add_argument("--gossipFile", type=str)
     parse.add_argument("--lightningDataDir", type=str)
 
     args = parse.parse_args()
@@ -78,7 +79,7 @@ def overrideConfig(args, config):
         config.saveDir = args.saveDir
     if args.name != None:
         config.name = args.name
-        config.nodeSaveFile, config.channelSaveFile, config.gossipSaveFile = utility.getSaveFiles(config.saveDir, config.name)
+        config.nodeFile, config.channelFile, config.gossipFile, config.scidSatoshisFile = utility.getSaveFiles(config.saveDir, config.name)
     if args.channels != None:
         config.channelNum = args.channels
     if args.p != None:
@@ -89,12 +90,14 @@ def overrideConfig(args, config):
         config.randSeed = args.randSeed
     if args.listchannelsFile != None:
         config.listchannelsFile = args.listchannelsFile
-    if args.channelSaveFile != None:
-        config.channelSaveFile = args.channelSaveFile
-    if args.nodeSaveFile != None:
-        config.nodeSaveFile = args.nodeSaveFile
-    if args.gossipSaveFile != None:
-        config.gossipSaveFile = args.gossipSaveFile
+    if args.channelFile != None:
+        config.channelFile = args.channelFile
+    if args.scidSatoshisFile != None:
+        config.scidSatoshisFile = args.scidSatoshisFile
+    if args.nodeFile != None:
+        config.nodeFile = args.nodeFile
+    if args.gossipFile != None:
+        config.gossipFile = args.gossipFile
     if args.lightningDataDir != None:
         config.lightningDataDir = args.lightningDataDir
 

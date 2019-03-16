@@ -22,7 +22,7 @@ def main():
     :return:
     """
     fp = open(listchannelsFile)
-    jn = utility.loadjson(fp)
+    jn = utility.loadJson(fp)
 
     #experiments
     nodes, channels = utility.listchannelsJsonToObject(jn)

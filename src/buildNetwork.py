@@ -10,34 +10,28 @@ from common import utility
 from analysis import powerLawReg, fundingReg
 import time
 from numpy.random import shuffle
+import bisect
 
 
 def buildNetwork(config):
     fp = open(config.listchannelsFile)
     t0 = time.time()
-    jn = utility.loadjson(fp)
+    jn = utility.loadJson(fp)
     t1 = time.time()
     print("json load complete", t1-t0)
     targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
-    t0 = time.time()
     targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
     targetNetwork.channels = targetChannels
     targetNetwork.analysis.analyze()
     utility.setRandSeed(config.randSeed)
     newNodes = nodeDistribution(targetNetwork, config.channelNum, config.maxChannelsPerNode)   # eventually a config command can turn on and off the rand dist
-    t1 = time.time()
-    print("nodeDistribution done", t1-t0)
     network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
-    t2 = time.time()
     gossipSequence = buildEdges(network, config.maxChannelsPerNode)
-    t3 = time.time()
-    print("buildNetworkFast", t3-t2)
-
+    capacityDistribution(network, targetNetwork, config)
     buildNodeDetails(targetNetwork, config, network)
-    #buildChannelDetails(targetNetwork, config)
+    utility.writeSatoshisScidCSV(network.channels, config.scidSatoshisFile)
     utility.writeNetwork(network, gossipSequence, config.nodeSaveFile, config.channelSaveFile)
     return network, targetNetwork, gossipSequence
-
 
 
 def buildNodeDetails(targetNetwork, config, network=None):
@@ -48,7 +42,7 @@ def buildNodeDetails(targetNetwork, config, network=None):
     :return:
     """
     fp = open(config.listnodesFile)
-    jn = utility.loadjson(fp)
+    jn = utility.loadJson(fp)
     targetNodesJson = utility.listnodesJsonToObject(jn)
     # filter out node announcements that don't correspond to any channel announcement
     matches = []
@@ -273,7 +267,7 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
     """
     channelsToCreate = 2 * finalNumChannels
 
-    params = network.analysis.powerLaw[0]
+    params = network.analysis.channelDistPowLawParams[0]
     nodes = []
     a,b,c = params[0],params[1],params[2]
     nodeidCounter = 0
@@ -301,12 +295,105 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
         while channelsForNode > maxChannelsPerNode or channelsForNode < 1:
             r = random.uniform(0, pMax)
             # r = random.uniform(0, 1)
-            x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
+            x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0] #TODO base this off of integral of inverse!
             channelsForNode = round(x, 0)
         totalChannels += channelsForNode
 
     return nodes
 
+def capacityDistribution(network, targetNetwork, config):
+
+    nodeNum = len(network.getNodes())
+    #start by generating a bunch of random capacities by generating random probs, and putting them in invert func
+    #sort above list in reverse order, from largest cap to smallest
+    capList = []
+    params = targetNetwork.analysis.nodeCapacityInNetPowLawParams[0]
+    interval = targetNetwork.analysis.nodeCapacityInNetPowLawParams[2]
+    while len(capList) < nodeNum:
+        pMax = powerLawReg.powerLawFuncC([0], *params)[0]  #lowest you can go
+        r = random.uniform(0, pMax)
+        while r == pMax:
+            r = random.uniform(0, pMax)
+        x = powerLawReg.inversePowLawFuncC([r], *params)[0]   #TODO base this off of integral of inverse!
+        xSatoshis = round(x * interval)
+        bisect.insort_left(capList, xSatoshis)
+
+    #TODO do swapping in list to make it more random but for the most part sorted from greatest to least
+
+    #sort network in reverse order by number of channels
+    nodesByChans = network.getNodes().copy()
+    nodesByChans.sort(key=utility.sortByChannelCount, reverse=False)
+
+    #assign each node in reverse order a capacity in the order of the semi sorted list
+    for i in range (nodeNum-1, -1, -1):
+        currCap = capList[i]
+        currNode = nodesByChans[i]
+        currNode.setUnallocated(currCap)
+        currNode.setAllocation(currCap)
+        currNode.channels.sort(key=currNode.getValueLeftOfOtherNode, reverse=True)
+
+    capPercent = targetNetwork.analysis.channelCapacityInNodeParams[1][2]
+    rankingSize = targetNetwork.analysis.channelCapacityInNodeParams[2]
+    begin = 0
+    i = 0
+    chani = 0 #index of channel in node. The ones before it already have capacities
+    defaultMinSatoshis = 1000
+    while begin < nodeNum: #while there are still nodes that have channels left to create
+        currNode = nodesByChans[i]
+        # determine how many channels left to create
+        if chani+1 == len(currNode.channels): #we wrap around sooner because another node is complete
+            begin += 1
+
+        chan = currNode.channels[chani]
+
+
+        if chani < rankingSize: #we choose based on linear reg
+            per = capPercent[chani]
+            alloc = currNode.allocation
+            newCap = round(per*alloc)
+            chan.value = newCap
+            otherNode = currNode.getOtherNode(chan)
+            otherNode.unallocated -= newCap
+            otherNode.value += newCap
+            currNode.unallocated -= newCap
+            currNode.value += newCap
+        else:   #we finish off node by randomly allocating rest of channels with even split of rest of capacity
+            print("ready to allocate >15")
+            if i in range(chani, currNode.channelCount):
+                chan = currNode.channels[chani]
+                otherNode = currNode.getOtherNode(chan)
+                otherUnalloc = otherNode.unallocated
+                unalloc = currNode.unallocated
+                chansLeft = currNode.channelCount - chani
+                avgCap = unalloc / chansLeft
+                if unalloc <= 0 or otherUnalloc <= 0:
+                    chan.value = defaultMinSatoshis
+                    otherNode.unallocated -= defaultMinSatoshis
+                    otherNode.value += defaultMinSatoshis
+                    currNode.unallocated -= defaultMinSatoshis
+                    currNode.value += defaultMinSatoshis
+                elif otherUnalloc - avgCap <= 0:
+                    chan.value = otherUnalloc
+                    otherNode.unallocated -= otherUnalloc
+                    otherNode.value += otherUnalloc
+                    currNode.unallocated -= otherUnalloc
+                    currNode.value += otherUnalloc
+                else:
+                    chan.value = avgCap
+                    otherNode.unallocated -= avgCap
+                    otherNode.value += avgCap
+                    currNode.unallocated -= avgCap
+                    currNode.value += avgCap
+            begin += 1
+
+        if i == nodeNum - 1:
+            i = begin
+            chani += 1
+        else:
+            i += 1
+
+    #for each node, order channels by
+    pass
 
 def setAllChannelsDefaultValue(network, value):
     """

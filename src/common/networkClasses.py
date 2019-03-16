@@ -21,6 +21,9 @@ class Node:
         self.setAnnounce(False)
         self.addrType = None
         self.value = 0
+        self.channels = []
+        self.unallocated = 0
+        self.allocation = 0
 
     def setHasKeys(self, b):
         """
@@ -28,6 +31,12 @@ class Node:
         :param: b: true
         """
         self.hasKeys = b
+
+    def setUnallocated(self, unallocated):
+        self.unallocated = unallocated
+
+    def setAllocation(self, allocation):
+        self.allocation = allocation
 
     def setNodeCPrivObj(self, cPrivObj):
         self.nodeCPrivObj = cPrivObj
@@ -44,8 +53,31 @@ class Node:
     def addValue(self, value):
         self.value += value
 
-    def addChannel(self, channel):
+    def getValueLeftOfOtherNode(self, channel):
+        """
+        gets unused capacity of other node in channel
+        :param channel:
+        :param currNode:
+        :return:
+        """
+        otherNode = self.getOtherNode(channel)
+        unallocated = otherNode.unallocated
+        # channelsLeft = otherNode.channelCount - len(otherNode.channelsWithCapacity)
+        return unallocated
+
+    def getOtherNode(self, channel):
+        n1 = channel.node1
+        n2 = channel.node2
+        if self == n1:
+            other = n2
+        else:
+            other = n1
+        return other
+
+    def addChannel(self, channel=None):
         self.channelCount += 1
+        if channel is not None:
+            self.channels += [channel]
 
     def setMaxChannels(self,num):
         self.maxChannels = num
@@ -239,10 +271,21 @@ class Analysis:
         self.network = network
 
     def analyze(self):
+        self.channelDistPowLaw()
+        self.nodeCapacityInNetPowLaw()
+        self.channelCapacityInNodeLinear()
+
+    def channelDistPowLaw(self):
         params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=False, completeNetwork=True)   #only fully connected nodes get analyzed
-        self.powerLaw = (params, covariance, x, yProb)
-        params2, covariance2 = fundingReg.fundingRegExperiment(self.network.getNodes(), self.network.channels)
-        self.fundingReg = (params2, covariance2)
+        self.channelDistPowLawParams = (params, covariance, x, yProb)
+
+    def nodeCapacityInNetPowLaw(self):
+        params, covariance, interval = fundingReg.nodeCapacityInNetPowLaw(self.network.getNodes(), self.network.channels)
+        self.nodeCapacityInNetPowLawParams = (params, covariance, interval)
+
+    def channelCapacityInNodeLinear(self):
+        otherNodeLinearExperiment, capPercentExperiment, rankingSize  = fundingReg.channelCapacityInNode(self.network.getNodes(), self.network.channels)
+        self.channelCapacityInNodeParams = (otherNodeLinearExperiment, capPercentExperiment, rankingSize)
 
     def betweenness(self):
         """

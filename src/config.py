@@ -10,6 +10,7 @@ processNum = 4
 listchannelsFile = saveDir + "channels_1-18-18.json"
 listnodesFile = saveDir + "nodes_1-18-18.json"
 channelSaveFile = saveDir + name + "/" + name + ".channels"
+scidSatoshisFile = saveDir + name + "/" + "scidSatoshis" + ".csv"
 nodeSaveFile = saveDir + name + "/" + name + ".nodes"
 gossipSaveFile = saveDir + name + "/" + name + ".gossip"
 lightningDataDir = ""

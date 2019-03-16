@@ -10,7 +10,25 @@ import csv
 
 # helper functions
 
-def loadjson(fp):
+
+def loadCSV(fp):
+    reader = csv.reader(fp)
+    return reader
+
+def writeCSV(fp):
+    writer = csv.writer(fp)
+    return writer
+
+def writeSatoshisScidCSV(channels, filename):
+    with open(filename, "w", newline="") as fp:
+        writer = writeCSV(fp)
+        writer.writerow(["scid,satoshis"])
+        for c in channels:
+            writer.writerow([c.scid.hex(),str(c.value)])
+
+
+
+def loadJson(fp):
     """
     helper function to load json
     :param fp: file object
@@ -19,16 +37,12 @@ def loadjson(fp):
     return json.load(fp)
 
 
-def loadcsv(fp):
-    reader = csv.reader(fp)
-    return reader
-
-
 def getSaveFiles(datadir, name):
     nodeSaveFile = datadir + name + "/" + name + ".nodes"
     channelSaveFile = datadir + name + "/" + name + ".channels"
     gossipSaveFile = datadir + name + "/" + name + ".gossip"
-    return nodeSaveFile, channelSaveFile, gossipSaveFile
+    scidSatoshisFile = datadir + name + "/" + "scidSatoshis" + ".csv"
+    return nodeSaveFile, channelSaveFile, gossipSaveFile, scidSatoshisFile
 
 def search(a, x):
     """
@@ -54,42 +68,43 @@ def listchannelsJsonToObject(jn):
     nodes = []
     for i in range(0, len(channelsJson)):
         currChannel = channelsJson[i]
-        nodeid1 = channelsJson[i]["source"]
-        nodeid2 = channelsJson[i]["destination"]
-        channelObj = networkClasses.Channel(None, None, json=currChannel, value=currChannel["satoshis"])
-        nodeObj1 = networkClasses.Node(nodeid1)
-        nodeObj2 = networkClasses.Node(nodeid2)
+        if currChannel["active"] == True or currChannel["active"] == False:
+            nodeid1 = channelsJson[i]["source"]
+            nodeid2 = channelsJson[i]["destination"]
+            channelObj = networkClasses.Channel(None, None, json=currChannel, value=currChannel["satoshis"])
+            nodeObj1 = networkClasses.Node(nodeid1)
+            nodeObj2 = networkClasses.Node(nodeid2)
 
-        node1Exists = search(nodes, nodeObj1)
-        if node1Exists != -1:
-            nodeObj1 = nodes[node1Exists]
-        else:
-            bisect.insort_left(nodes, nodeObj1)
+            node1Exists = search(nodes, nodeObj1)
+            if node1Exists != -1:
+                nodeObj1 = nodes[node1Exists]
+            else:
+                bisect.insort_left(nodes, nodeObj1)
 
-        node2Exists = search(nodes, nodeObj2)
-        if node2Exists != -1:
-            nodeObj2 = nodes[node2Exists]
-        else:
-            bisect.insort_left(nodes, nodeObj2)
+            node2Exists = search(nodes, nodeObj2)
+            if node2Exists != -1:
+                nodeObj2 = nodes[node2Exists]
+            else:
+                bisect.insort_left(nodes, nodeObj2)
 
 
-        pair = False
-        if node1Exists != -1 and node2Exists != -1:
-            node1Channels = nodeObj1.channels
-            channelExists = search(node1Channels, channelObj)
-            if channelExists != -1:
-                pair = True
+            pair = False
+            if node1Exists != -1 and node2Exists != -1:
+                node1Channels = nodeObj1.channels
+                channelExists = search(node1Channels, channelObj)
+                if channelExists != -1:
+                    pair = True
 
-        if pair == False:
-            channelObj.setNode1(nodeObj1)
-            channelObj.setNode2(nodeObj2)
-            nodeObj1.addChannel(channelObj)
-            nodeObj1.addValue(int(currChannel["satoshis"]))
-            nodeObj2.addChannel(channelObj)
-            nodeObj2.addValue(int(currChannel["satoshis"]))
-            bisect.insort_left(nodeObj1.channels, channelObj)
-            bisect.insort_left(nodeObj2.channels, channelObj)
-            bisect.insort_left(channels, channelObj)
+            if pair == False:
+                nodeObj1.addValue(int(currChannel["satoshis"]))
+                nodeObj2.addValue(int(currChannel["satoshis"]))
+                channelObj.setNode1(nodeObj1)
+                channelObj.setNode2(nodeObj2)
+                nodeObj1.addChannel()
+                nodeObj2.addChannel()
+                bisect.insort_left(nodeObj1.channels, channelObj)
+                bisect.insort_left(nodeObj2.channels, channelObj)
+                bisect.insort_left(channels, channelObj)
 
     return nodes, channels
 
@@ -110,6 +125,7 @@ def writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile):
     dump(nodeNum, f1)
     nodes = network.getNodes()
     for n in range(0, nodeNum):
+        nodes[n].channels = []
         dump(nodes[n], f1)
     f1.close()
 
@@ -119,6 +135,7 @@ def writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile):
     for c in network.channels:
         dump(networkClasses.Chan(c), f2)
     f2.close()
+
 
 def loadNetwork(nodeSaveFile, channelSaveFile):
     """
@@ -205,4 +222,10 @@ def sortByNodeId(node):
     """ 
     return node.nodeid
 
-
+def sortByChanValue(chan):
+    """
+    Use in .sort() when you want to sort a list of channels by value
+    :param chan: channel obj
+    :return: value
+    """
+    return chan.value
