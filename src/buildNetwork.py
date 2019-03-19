@@ -14,25 +14,42 @@ import bisect
 
 
 def buildNetwork(config):
+    #load snapshot of network
     fp = open(config.listchannelsFile)
-    t0 = time.time()
     jn = utility.loadJson(fp)
-    t1 = time.time()
-    print("json load complete", t1-t0)
     targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
     targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
     targetNetwork.channels = targetChannels
+    #analyze snapshot of network
     targetNetwork.analysis.analyze()
     utility.setRandSeed(config.randSeed)
-    newNodes = nodeDistribution(targetNetwork, config.channelNum, config.maxChannelsPerNode)   # eventually a config command can turn on and off the rand dist
+    #allocate number of channels per node for new network
+    maxChannelsPerNode = config.maxChannels
+    if maxChannelsPerNode == "default":
+        maxChannelsPerNodeUnscaled = getMaxChannels(targetNetwork)
+        ratio = config.channelNum / targetNetwork.nodeNumber
+        maxChannelsPerNode = int((ratio * maxChannelsPerNodeUnscaled) // 1)
+    newNodes = nodeDistribution(targetNetwork, config.channelNum, maxChannelsPerNode)   # eventually a config command can turn on and off the rand dist
     network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
-    gossipSequence = buildEdges(network, config.maxChannelsPerNode)
+    # create channels
+    gossipSequence = buildEdges(network)
+    # create capacity of channels
     capacityDistribution(network, targetNetwork, config)
+    # create details of nodes
     buildNodeDetails(targetNetwork, config, network)
+    # save node and channel information
     utility.writeSatoshisScidCSV(network.channels, config.scidSatoshisFile)
     utility.writeNetwork(network, gossipSequence, config.nodeSaveFile, config.channelSaveFile)
+    print(len(network.getNodes()))
     return network, targetNetwork, gossipSequence
 
+
+def getMaxChannels(targetNetwork):
+    maxC = 0
+    for n in targetNetwork.getNodes():
+        if n.maxChannels > maxC:
+            maxC = n.maxChannels
+    return maxC
 
 def buildNodeDetails(targetNetwork, config, network=None):
     """
@@ -123,25 +140,16 @@ def buildNodeDetails(targetNetwork, config, network=None):
         node.setAddrType(None)
         node.setAnnounce(False)
 
-def buildChannelDetails(targetNetwork, config, network=None):   #TODO add network as param
-
-    # run funding reg
-    # channels that connect hubs are set to high capacity as determined by funding reg
-    # for the rest of the channels, find channel on reg line and
-
-    params = targetNetwork.analysis.fundingReg
-
-
-    return
-
-
-def buildEdges(network, maxChannelsPerNode):
+def buildEdges(network):
     """
     build network by creating all channels for nodes from largest max channels to smallest max channels.
     No duplicate channels are created between nodes.
     :param network: network
     """
     # connect first node to second node (to bootstrap network)
+    if len(network.getNodes()) == 1:
+        raise ValueError("Only 1 node in network. Increase --channelNum or set --maxChannels lower")
+
     network.unfullNodes.sort(key=utility.channelMaxSortKey, reverse=True)
     usedLst = [[] for i in range(0, len(network.unfullNodes))]
     nodes = network.unfullNodes
@@ -166,14 +174,13 @@ def buildEdges(network, maxChannelsPerNode):
                 if len(nodesLeft) - 1 == 0:
                     done = True
                     break
-                # if len(usedLst[node.nodeid]) == (len(nodesLeft) - 1):  #if all nodes left are already connected to, go to the next node  #FIXME
-                #     break
+                if len(usedLst[node.nodeid]) == (network.nodeNumber - 1):
+                    break
                 r = random.randint(0, len(nodesLeft)-1)
                 nodeToConnect = nodesLeft[r]
-                nodeToConnectId = nodeToConnect.nodeid
                 b = nodeToConnect.isFull()
-                eq = node.nodeid == nodeToConnectId
-                used = node.nodeid in usedLst[nodeToConnectId]
+                eq = node.nodeid == nodeToConnect.nodeid
+                used = node.nodeid in usedLst[nodeToConnect.nodeid]
                 disConn = False
                 if i == (channelsToCreate - 1):  # for last channel to connect to, make sure node is in the network
                     if not node.isInNetwork() and not nodeToConnect.isInNetwork():
@@ -183,29 +190,43 @@ def buildEdges(network, maxChannelsPerNode):
                     disConn = False
                     if b:
                         nodesLeft.pop(r)
-                    if eq:
+                    elif eq:
                         nodesLeft.pop(r)
                     if used:
                         j += 1
                     if len(nodesLeft)-1 == 0:
                         done = True
                     elif j == 5:
-                        for n in nodesLeft:
+                        k = 0
+                        while k < len(nodesLeft):
                             nodeDone = True
-                            if n.nodeid not in usedLst[node.nodeid] and n.isInNetwork():
+                            n = nodesLeft[k]
+                            b = nodeToConnect.isFull()
+                            if b:
+                                nodesLeft.pop(k)
+                            else:
+                                k += 1
+
+                            if n.nodeid not in usedLst[node.nodeid] and (n.isInNetwork() or node.isInNetwork()) and not n.isFull() and node.nodeid != n.nodeid:
+                                r = k
                                 nodeToConnect = n
                                 nodeDone = False
+                                b = False
+                                eq = False
+                                used = False
                                 break
+
                     else:
                         r = random.randint(0, len(nodesLeft) - 1)
                         nodeToConnect = nodesLeft[r]
-                        nodeToConnectId = nodeToConnect.nodeid
                         b = nodeToConnect.isFull()
-                        eq = node.nodeid == nodeToConnectId
-                        used = node.nodeid in usedLst[nodeToConnectId]
+                        eq = node.nodeid == nodeToConnect.nodeid
+                        used = node.nodeid in usedLst[nodeToConnect.nodeid]
                         if i == (channelsToCreate - 1): #for last channel to connect to, make sure node is in the network
                             if not node.isInNetwork() and not nodeToConnect.isInNetwork():
                                 disConn = True
+                                j += 1
+
                 if not done and not nodeDone:
                     if node.isInNetwork() and not nodeToConnect.isInNetwork(): #curr node brings new node into the network
                         nodeToConnect.setInNetwork(inNetwork=True)
@@ -218,10 +239,10 @@ def buildEdges(network, maxChannelsPerNode):
                         disConnNodes = []
                     channel = network.createNewChannel(node, nodeToConnect)
                     channel.setScid(utility.getScid(scidHeight, scidTx))
-                    scidHeight, scidTx = incrementScid(scidHeight, scidTx, maxChannelsPerNode)
-                    usedLst[node.nodeid] += [nodeToConnectId]
-                    usedLst[nodeToConnectId] += [node.nodeid]
-                    es += [(node.nodeid, nodeToConnectId)]
+                    scidHeight, scidTx = incrementScid(scidHeight, scidTx)
+                    usedLst[node.nodeid] += [nodeToConnect.nodeid]
+                    usedLst[nodeToConnect.nodeid] += [node.nodeid]
+                    es += [(node.nodeid, nodeToConnect.nodeid)]
                 else:
                     break
             afterBound = len(network.channels)
@@ -242,7 +263,7 @@ def buildEdges(network, maxChannelsPerNode):
     return gossipSequence
 
 
-def incrementScid(height, tx, maxChannelsPerNode):
+def incrementScid(height, tx):
     """
     this will change in the future when 
     """
@@ -250,11 +271,11 @@ def incrementScid(height, tx, maxChannelsPerNode):
     if tx == maxFundingTxPerBlock:
         tx = 1
         height += 1
-    elif tx < maxChannelsPerNode:
-        tx += 1
     else:
-        raise ValueError("incrementScid: tx cannot be greater than ", str(maxFundingTxPerBlock))
+        tx += 1
+
     return height, tx
+
 
 def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
     """
@@ -269,35 +290,18 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
 
     params = network.analysis.channelDistPowLawParams[0]
     nodes = []
-    a,b,c = params[0],params[1],params[2]
     nodeidCounter = 0
     totalChannels = 0
-    pMax = powerLawReg.powerLawFuncC([1], a, b, c)[0]
-    r = random.uniform(0, pMax)
-    # r = random.uniform(0, 1)
-    x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
-    channelsForNode = round(x, 0)
-    while channelsForNode > maxChannelsPerNode or channelsForNode < 1:
-        r = random.uniform(0, pMax)
-        # r = random.uniform(0, 1)
-        x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
-        channelsForNode = round(x, 0)
-    totalChannels += channelsForNode
 
     while totalChannels < channelsToCreate:     # this is why I wish python had do-while statements!!!
-        n = networkClasses.Node(nodeidCounter, maxChannels=channelsForNode)
-        nodes += [n]
-        nodeidCounter += 1
-        r = random.uniform(0, pMax)
-        # r = random.uniform(0, 1)
-        x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0]
-        channelsForNode = round(x, 0)
-        while channelsForNode > maxChannelsPerNode or channelsForNode < 1:
-            r = random.uniform(0, pMax)
-            # r = random.uniform(0, 1)
-            x = powerLawReg.inversePowLawFuncC([r], a, b, c)[0] #TODO base this off of integral of inverse!
-            channelsForNode = round(x, 0)
-        totalChannels += channelsForNode
+        x = powerLawReg.randToPowerLaw(params)
+        if x == 0 or x > maxChannelsPerNode:
+            continue
+        else:
+            totalChannels += x
+            n = networkClasses.Node(nodeidCounter, maxChannels=x)
+            nodes += [n]
+            nodeidCounter += 1
 
     return nodes
 
@@ -310,11 +314,9 @@ def capacityDistribution(network, targetNetwork, config):
     params = targetNetwork.analysis.nodeCapacityInNetPowLawParams[0]
     interval = targetNetwork.analysis.nodeCapacityInNetPowLawParams[2]
     while len(capList) < nodeNum:
-        pMax = powerLawReg.powerLawFuncC([0], *params)[0]  #lowest you can go
-        r = random.uniform(0, pMax)
-        while r == pMax:
-            r = random.uniform(0, pMax)
-        x = powerLawReg.inversePowLawFuncC([r], *params)[0]   #TODO base this off of integral of inverse!
+        x = powerLawReg.randToPowerLaw(params)
+        while x == 0 or x > config.maxFunding:
+            x = powerLawReg.randToPowerLaw(params)
         xSatoshis = round(x * interval)
         bisect.insort_left(capList, xSatoshis)
 
@@ -346,7 +348,6 @@ def capacityDistribution(network, targetNetwork, config):
 
         chan = currNode.channels[chani]
 
-
         if chani < rankingSize: #we choose based on linear reg
             per = capPercent[chani]
             alloc = currNode.allocation
@@ -358,7 +359,6 @@ def capacityDistribution(network, targetNetwork, config):
             currNode.unallocated -= newCap
             currNode.value += newCap
         else:   #we finish off node by randomly allocating rest of channels with even split of rest of capacity
-            print("ready to allocate >15")
             if i in range(chani, currNode.channelCount):
                 chan = currNode.channels[chani]
                 otherNode = currNode.getOtherNode(chan)
@@ -403,8 +403,3 @@ def setAllChannelsDefaultValue(network, value):
     """
     for channel in network.channels:
         channel.value = value
-
-
-def generateScids(network):
-    pass
-

@@ -276,15 +276,16 @@ class Analysis:
         self.channelCapacityInNodeLinear()
 
     def channelDistPowLaw(self):
-        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=False, completeNetwork=True)   #only fully connected nodes get analyzed
+        isIncomplete = not isinstance(self.network, IncompleteNetwork)
+        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=False, completeNetwork=isIncomplete ) #only fully connected nodes get analyzed
         self.channelDistPowLawParams = (params, covariance, x, yProb)
 
     def nodeCapacityInNetPowLaw(self):
-        params, covariance, interval = fundingReg.nodeCapacityInNetPowLaw(self.network.getNodes(), self.network.channels)
+        params, covariance, interval = fundingReg.nodeCapacityInNetPowLaw(self.network.getNodes(), graph=False)
         self.nodeCapacityInNetPowLawParams = (params, covariance, interval)
 
     def channelCapacityInNodeLinear(self):
-        otherNodeLinearExperiment, capPercentExperiment, rankingSize  = fundingReg.channelCapacityInNode(self.network.getNodes(), self.network.channels)
+        otherNodeLinearExperiment, capPercentExperiment, rankingSize  = fundingReg.channelCapacityInNode(self.network.getNodes(), graph=False)
         self.channelCapacityInNodeParams = (otherNodeLinearExperiment, capPercentExperiment, rankingSize)
 
     def betweenness(self):

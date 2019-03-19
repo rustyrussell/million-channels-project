@@ -2,7 +2,8 @@
 # can be changed by user: directories MUST end in backslash
 name = "1M"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
 channelNum = 1000000
-maxChannelsPerNode = 100000
+maxChannels =  1000  # "default"  will base it off of the snapshot of the network, but may lead to very few nodes
+maxFunding = pow(2,24)   #limit to number of sats in a channel
 defaultValue = 10000
 randSeed = 2
 saveDir = "../data/"

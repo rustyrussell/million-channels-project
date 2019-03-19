@@ -26,7 +26,7 @@ def main():
         network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config)
         network = gossip.main(config, network=network, gossipSequence=gossipSequence)
 
-    if args.tests: #TODO move to new function
+    if args.tests: #TODO move tests to new function
         for n in network.fullConnNodes:
             if n.maxChannels < n.channelCount:
                 print("too many channels", n.nodeid)
@@ -37,11 +37,9 @@ def main():
 
     if args.analyze:
         print("power log: c*((x+b)^-a)")
-        print("target network power law:", targetNetwork.analysis.powerLaw[0])
-        network.analysis.analyze()
-        
-        print("new network power law:", network.analysis.powerLaw[0])
-        print("new network betweenness:", network.analysis.betweenness())
+        print("target network power law:", targetNetwork.analysis.channelDistPowLawParams[0])
+        network.analysis.channelDistPowLaw()
+        print("new network power law:", network.analysis.channelDistPowLawParams[0])
 
 
 def parse():
@@ -55,7 +53,8 @@ def parse():
     parse.add_argument("--name", type=str, required=False)
     parse.add_argument("--channels", type=int)
     parse.add_argument("-p", type=int)
-    parse.add_argument("--maxChannelsPerNode", type=int)
+    parse.add_argument("--maxChannels", type=int)
+    parse.add_argument("--maxFunding", type=int)
     parse.add_argument("--defaultValue", type=int)
     parse.add_argument("--randSeed", type=int)
     parse.add_argument("--saveDir", type=str, required=False)
@@ -84,8 +83,10 @@ def overrideConfig(args, config):
         config.channelNum = args.channels
     if args.p != None:
         config.processNum = args.p
-    if args.maxChannelsPerNode != None:
-        config.maxChannelsPerNode = args.maxChannelsPerNode
+    if args.maxChannels != None:
+        config.maxChannels = args.maxChannels
+    if args.maxFunding != None:
+        config.maxFunding = args.maxFunding
     if args.randSeed != None:
         config.randSeed = args.randSeed
     if args.listchannelsFile != None:

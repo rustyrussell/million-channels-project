@@ -3,7 +3,6 @@ import bisect
 import json
 from common import networkClasses
 from random import seed, randint
-import copy
 from pickle import load, dump
 from igraph import Graph
 import csv
@@ -22,7 +21,7 @@ def writeCSV(fp):
 def writeSatoshisScidCSV(channels, filename):
     with open(filename, "w", newline="") as fp:
         writer = writeCSV(fp)
-        writer.writerow(["scid,satoshis"])
+        writer.writerow(["scid","satoshis"])
         for c in channels:
             writer.writerow([c.scid.hex(),str(c.value)])
 
@@ -194,6 +193,12 @@ def getScid(height, tx):
     bscid = bheight + btx + scidOutput
 
     return bscid
+
+
+
+def setMaxChannels(nodes):
+    for n in nodes:
+        n.setMaxChannels(n.channelCount)
 
 
 def channelMaxSortKey(node):

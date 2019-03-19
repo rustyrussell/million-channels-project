@@ -7,70 +7,12 @@ The latest commit only tests power_law. gini coefficient has not been done yet.
 from matplotlib import pyplot as plt
 from scipy import optimize
 from math import pow
-import numpy as np
 from common import utility, graph as g
-from analysis import measures
-import time
-from config import *
+import random
+
 
 
 #functions
-
-def main():
-    """
-    Opens json file, creates node and channel objects objects, runs gini coefficient and power log tests.
-    :return:
-    """
-    fp = open(listchannelsFile)
-    jn = utility.loadJson(fp)
-
-    #experiments
-    nodes, channels = utility.listchannelsJsonToObject(jn)
-    # #power law
-    # params, covariance, x, y = powerLawExperiment(nodes, graph=True, completeNetwork=True)
-    # print("power Law experiment results: ")
-    # print("alpha,beta,c: " + str(params[0]) + "," + str(params[1]) + "," + str(params[2]))
-    # print("covariance: ", end="" )
-    # print(covariance)
-    # xs = [1.1,2.3,3.123,4.99993]
-    # ys = powerLawFuncC(xs, params[0], params[1],params[2])
-    # print("x=1-4: ", end="")
-    # print(ys)
-    # testx = inversePowLawFuncC(ys, params[0], params[1],params[2])
-    # print("")
-
-    #cluster
-    cluster(nodes, graph=True)
-
-
-def cluster(nodes, reg=True, params=None, graph=False, completeNetwork=True, bounds=(0, 1000, 1)):
-    # lawParams, lawCovariance, x, y = powerLawExperiment(nodes, graph=False, completeNetwork=True)
-    if completeNetwork:
-        setMaxChannels(nodes)
-    t0 = time.time()
-    avgCluster, clusterDict = measures.clustering(nodes)
-    t1 = time.time()
-    print(avgCluster)
-    print(str(t1-t0))
-    covariance = None
-    freqx, freqy, clustery = measures.getClusterFreqData(nodes, clusterDict)
-    if reg:
-        params, covariance = negExpRegParam(freqx,clustery)
-    if graph:
-        g.simpleFreqPlot(freqx, clustery)
-        plotNegExp(negExpFunc, params, bounds)
-        plt.autoscale()
-        plt.show()
-
-    print(params)
-    print(covariance)
-
-    return avgCluster, clusterDict, freqx, clustery, params, covariance
-
-
-def setMaxChannels(nodes):
-    for n in nodes:
-        n.setMaxChannels(n.channelCount)
 
 #regression and power law function
 def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwork=False, bounds=(0, 1000, 1)):
@@ -79,21 +21,40 @@ def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwor
     :return: alpha, covariance
     """
     if completeNetwork:
-        setMaxChannels(nodes)
+        utility.setMaxChannels(nodes)
     x, y = getChannelFreqData(nodes)
-    x, y, nodeNumber = removeOutliers(x, y, len(nodes))
-    yProb = freqDataToProbData(y, nodeNumber)
+    yProb = freqDataToProbData(y, len(nodes))
     covariance = None
     if reg:  #for doing regression
         params, covariance = powerLawRegressionParam(x, yProb)
-        c, cProb = findBestC(params[0], params[1])
-        params = [params[0], params[1], c]
+        params = [params[0], params[1]]
     if graph:    #for plotting power law curve from experiment against new nodes scatterplot (called in build network)
         g.simpleFreqPlot(x, yProb)
-        plotPowLaw(powerLawFuncC, params, bounds)
+        g.plotFunction(powerLawFunc, params, bounds, xaxisDescription="channels", yaxisDescription="probability")
         plt.autoscale()
         plt.show()
     return params, covariance, x, yProb
+
+
+def boundIntergral(func, params, a, b):
+    return func(b, *params) - func(a, *params)
+
+def powLawIntegral(x, a, b):
+    y = (pow(x+b, (-1 * a)+1) / ((-1 * a)+1))
+    return y
+
+
+def inversePowLawIntegral(y, a, b):
+    lower = (((y) * ((-1* a)+1)))
+    upper = (1/((-1*a)+1))
+    x = pow(lower, upper) - b
+    return x
+
+def randToPowerLaw(params):
+    zero = powLawIntegral(0,  params[0], params[1])
+    r = random.uniform(zero, 0)
+    x = inversePowLawIntegral(r, params[0], params[1])
+    return round(x, 0)
 
 
 def powerLawFunc(xs, a, b):
@@ -109,20 +70,7 @@ def powerLawFunc(xs, a, b):
         y += [(pow(x+b, -1*a))]
     return y
 
-
-def powerLawFuncC(xs, a, b, c):
-    """
-    scaled power law function where discrete integral from 1<=x<inf ~= 1 from a custom c value.
-    :param xs: x list of data
-    :param a: alpha
-    :return: y
-    """
-    y = []
-    for x in xs:
-        y += [(c*pow(x+b, -1*a))]
-    return y
-
-def inversePowLawFuncC(ys, a, b ,c):
+def inversePowLawFunc(ys, a, b):
     """
     The reverse pow law is used for randomly generating the network
     :param ys: y values
@@ -133,17 +81,18 @@ def inversePowLawFuncC(ys, a, b ,c):
     """
     xs = []
     for y in ys:
-        xs += [(c/y)**(1/a) - b]
+        xs += [(y)**(1/a) - b]
     return xs
 
-def culmPowLawC(p, a, b, c):
+
+def culmPowLaw(p, a, b):
     #this is discrete rudimentary integration
     ch = 1  #num of channels
     s = 0
     y = 0
     while s < p:
         s += y
-        y = powerLawFuncC([ch], a, b, c)[0]
+        y = powerLawFunc([ch], a, b)[0]
         ch += 1
     return ch - 1
 
@@ -191,17 +140,6 @@ def freqDataToProbData(y, nodeNumber):
         newy += [ele/nodeNumber]
     return newy
 
-
-def removeOutliers(x, y, nodeNumber):
-    """
-    Removing outliers to get a better fit
-    :param x:
-    :param y:
-    :return:
-    """
-    #this functionality is disabled.
-    return x, y, nodeNumber
-
 def powerLawRegressionParam(x, y):
     """
     Performs a regression analysis on power law function
@@ -209,71 +147,6 @@ def powerLawRegressionParam(x, y):
     """
     alpha, covariance = optimize.curve_fit(powerLawFunc, x, y)
     return alpha, covariance
-
-
-def negExpRegParam(x, y):
-    """
-    Performs a regression analysis on power law function
-    :return:
-    """
-    params, covariance = optimize.curve_fit(negExpFunc, x, y)
-    return params, covariance
-
-
-def negExpFunc(xs, a,b,c):
-    y = []
-    for x in xs:
-        y += [(a**(-x+b))+c]
-    return y
-
-
-def findBestC(a, b):
-    """
-    Finds best C by finding the C that leads to a prob closest to and not above 1 with an accuracy of .01 for c
-    :param a:
-    :param b:
-    :return:
-    """
-    target = 1
-    bestC = 0
-    bestCProb = 0
-    currC = 0
-    cProb = 0
-    while (target-cProb) <= (target - bestCProb):
-        bestC = currC
-        bestCProb = cProb
-        currC += .01
-        y = powerLawFuncC(range(1, maxChannelsPerNode), a, b, currC)
-        cProb = sum(y)
-        if cProb > 1: break
-    return bestC, bestCProb
-
-
-def plotPowLaw(func, params, rangeTup):
-    """
-    plot a function over x range define in rangeTup
-    :param func: function that maps x->y
-    :param rangeTup: rangeTup where (starting, ending, discrete_interval)
-    :return: None
-    """
-    rr = np.arange(rangeTup[0], rangeTup[1], rangeTup[2])
-    plt.plot(rr, func(rr, params[0], params[1], params[2]))
-    plt.title("power law reg. on channel freq. prob. distribution")
-    plt.xlabel("channels")
-    plt.ylabel("probability")
-    # plt.box(on=True)
-    # plt.figtext(.45, .85, "y = x^(-" + str(a) + ")")
-
-def plotNegExp(func, params, rangeTup):
-    rr = np.arange(rangeTup[0], rangeTup[1], rangeTup[2])
-    plt.plot(rr, func(rr, params[0], params[1], params[2]))
-    plt.title("channels freq to average cluster reg")
-    plt.xlabel("channels")
-    plt.ylabel("average cluster")
-    # plt.box(on=True)
-    # plt.figtext(.45, .85, "y = x^(-" + str(a) + ")")
-
-# test functions
 
 
 def testIfNodesDuplicates(nodes):
@@ -299,5 +172,4 @@ def testProbDataSumsTo1(y):
     s = sum(y)
     print(s)
     return s == 1
-
 

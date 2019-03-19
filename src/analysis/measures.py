@@ -3,9 +3,57 @@ Contains measures for the network creation backtracking algo defined in build_ne
 """
 from common import utility
 import numpy as np
+from matplotlib import pyplot as plt
+import time
+from scipy import optimize
+from common import graph as g
+
+
+
+def cluster(nodes, reg=True, params=None, graph=False, completeNetwork=True, bounds=(0, 1000, 1)):
+    # lawParams, lawCovariance, x, y = powerLawExperiment(nodes, graph=False, completeNetwork=True)
+    if completeNetwork:
+        utility.setMaxChannels(nodes)
+    t0 = time.time()
+    avgCluster, clusterDict = clustering(nodes)
+    t1 = time.time()
+    print(avgCluster)
+    print(str(t1-t0))
+    covariance = None
+    freqx, freqy, clustery = getClusterFreqData(nodes, clusterDict)
+    if reg:
+        params, covariance = negExpRegParam(freqx,clustery)
+    if graph:
+        g.simpleFreqPlot(freqx, clustery)
+        g.plotFunction(negExpFunc, params, bounds, xaxisDescription="channels", yaxisDescription="average cluster" )
+        plt.autoscale()
+        plt.show()
+
+    print(params)
+    print(covariance)
+
+    return avgCluster, clusterDict, freqx, clustery, params, covariance
+
+
+
+def negExpFunc(xs, a,b,c):
+    y = []
+    for x in xs:
+        y += [(a**(-x+b))+c]
+    return y
+
+
+def negExpRegParam(x, y):
+    """
+    Performs a regression analysis on power law function
+    :return:
+    """
+    params, covariance = optimize.curve_fit(negExpFunc, x, y)
+    return params, covariance
+
 
 """
-The function below is from https://github.com/oliviaguest/gini
+The gini function below is from https://github.com/oliviaguest/gini
 """
 def gini(array):
     """Calculate the Gini coefficient of a numpy array."""
