@@ -160,6 +160,7 @@ class Chan:
         self.node1id = channel.node1.nodeid
         self.node2id = channel.node2.nodeid
         self.scid = channel.scid
+        self.value = channel.value
 
 
 class Network:
@@ -229,6 +230,10 @@ class Network:
         node2 = channel.node2
         node1.removeChannel(channel)
         node2.removeChannel(channel)
+
+    def printNetworkStats(self):
+        print("# of nodes in network", len(self.getNodes()))
+        print("# of channels in network", len(self.channels))
 
 class IncompleteNetwork(Network):     # inherits Network class
     """

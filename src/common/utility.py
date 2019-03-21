@@ -160,7 +160,7 @@ def loadNetwork(nodeSaveFile, channelSaveFile):
         chan = load(f2)
         node1 = nodes[chan.node1id]
         node2 = nodes[chan.node2id]
-        channel = networkClasses.Channel(node1, node2, scid=chan.scid)
+        channel = networkClasses.Channel(node1, node2, scid=chan.scid, value=chan.value)
         channels += [channel]
         es += [(channel.node1.nodeid, channel.node2.nodeid)]
     f2.close()

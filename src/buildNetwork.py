@@ -35,12 +35,16 @@ def buildNetwork(config):
     gossipSequence = buildEdges(network)
     # create capacity of channels
     capacityDistribution(network, targetNetwork, config)
+    for n in network.getNodes():
+        for c in n.channels:
+            if c.value is None:
+                print("in node:", "scid", c.scid, "of node1", c.node1.nodeid, "node2", c.node2.nodeid, "has None value")
+
     # create details of nodes
     buildNodeDetails(targetNetwork, config, network)
     # save node and channel information
     utility.writeSatoshisScidCSV(network.channels, config.scidSatoshisFile)
     utility.writeNetwork(network, gossipSequence, config.nodeSaveFile, config.channelSaveFile)
-    print(len(network.getNodes()))
     return network, targetNetwork, gossipSequence
 
 
@@ -260,6 +264,7 @@ def buildEdges(network):
     network.disconnNodes = []
     network.unfullNodes = []
 
+
     return gossipSequence
 
 
@@ -292,16 +297,16 @@ def nodeDistribution(network, finalNumChannels, maxChannelsPerNode):
     nodes = []
     nodeidCounter = 0
     totalChannels = 0
-
-    while totalChannels < channelsToCreate:     # this is why I wish python had do-while statements!!!
-        x = powerLawReg.randToPowerLaw(params)
+    x = powerLawReg.randToPowerLaw(params)
+    while x > maxChannelsPerNode or x + totalChannels < channelsToCreate:
         if x == 0 or x > maxChannelsPerNode:
-            continue
+            pass
         else:
             totalChannels += x
             n = networkClasses.Node(nodeidCounter, maxChannels=x)
             nodes += [n]
             nodeidCounter += 1
+        x = powerLawReg.randToPowerLaw(params)
 
     return nodes
 
@@ -337,30 +342,33 @@ def capacityDistribution(network, targetNetwork, config):
     capPercent = targetNetwork.analysis.channelCapacityInNodeParams[1][2]
     rankingSize = targetNetwork.analysis.channelCapacityInNodeParams[2]
     begin = 0
-    i = 0
+    nodei = 0
     chani = 0 #index of channel in node. The ones before it already have capacities
     defaultMinSatoshis = 1000
     while begin < nodeNum: #while there are still nodes that have channels left to create
-        currNode = nodesByChans[i]
+        currNode = nodesByChans[nodei]
+
         # determine how many channels left to create
-        if chani+1 == len(currNode.channels): #we wrap around sooner because another node is complete
+
+        if chani+1 == currNode.channelCount: #we wrap around sooner because another node is complete
             begin += 1
 
         chan = currNode.channels[chani]
 
-        if chani < rankingSize: #we choose based on linear reg
-            per = capPercent[chani]
-            alloc = currNode.allocation
-            newCap = round(per*alloc)
-            chan.value = newCap
-            otherNode = currNode.getOtherNode(chan)
-            otherNode.unallocated -= newCap
-            otherNode.value += newCap
-            currNode.unallocated -= newCap
-            currNode.value += newCap
-        else:   #we finish off node by randomly allocating rest of channels with even split of rest of capacity
-            if i in range(chani, currNode.channelCount):
-                chan = currNode.channels[chani]
+        if chan.value is None:
+            if chani < rankingSize: #we choose based on linear reg
+                per = capPercent[chani]
+                alloc = currNode.allocation
+                newCap = round(per*alloc)
+                chan.value = newCap
+                otherNode = currNode.getOtherNode(chan)
+                otherNode.unallocated -= newCap
+                otherNode.value += newCap
+                currNode.unallocated -= newCap
+                currNode.value += newCap
+            else:   # we finish off node by randomly allocating rest of channels with even split of rest of capacity
+                # if i in range(chani, currNode.channelCount):
+                #     chan = currNode.channels[chani]
                 otherNode = currNode.getOtherNode(chan)
                 otherUnalloc = otherNode.unallocated
                 unalloc = currNode.unallocated
@@ -384,13 +392,12 @@ def capacityDistribution(network, targetNetwork, config):
                     otherNode.value += avgCap
                     currNode.unallocated -= avgCap
                     currNode.value += avgCap
-            begin += 1
 
-        if i == nodeNum - 1:
-            i = begin
+        if nodei == nodeNum - 1:
+            nodei = begin
             chani += 1
         else:
-            i += 1
+            nodei += 1
 
     #for each node, order channels by
     pass

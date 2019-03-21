@@ -7,7 +7,7 @@ from copy import deepcopy
 from multiprocessing import Process, Lock
 
 
-def main(config, network=None, gossipSequence=None):
+def gossip(config, network, gossipSequence):
     """
     creates and writes all gossip from the files nodeSaveFile and channelSaveFile defined in config 
     Writes this information to gossipSaveFile
@@ -16,13 +16,6 @@ def main(config, network=None, gossipSequence=None):
     utility.setRandSeed(config.randSeed)
     SelectParams("regtest")
     initGossip(config.gossipSaveFile)
-    t0 = time.time()
-    if network == None:
-        network, gossipSequence = utility.loadNetwork(config.nodeSaveFile, config.channelSaveFile)
-        t1 = time.time()
-        print("loading network complete", t1-t0)
-
-    print(len(network.fullConnNodes))
     t2 = time.time()
     generateAllGossip(network, gossipSequence, config.gossipSaveFile, config.processNum)
     t3 = time.time()
@@ -120,10 +113,6 @@ def genGossip(bundles, gossipSaveFile, l):
 
             bn1 = None
             bn2 = None
-            #
-            # ba = None
-            # bu1 = None
-            # bu2 = None
 
             if channel.n1Write:
                 n1 = createNodeAnnouncment(node1)
@@ -199,7 +188,7 @@ def createChannelAnnouncement(channel, scid):
 
 #update fields
 updateType = bytearray().fromhex("0102") #258
-initialTimestamp = 1550513768     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
+initialTimestamp = 1553043626     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
 btimestamp = bytearray(initialTimestamp.to_bytes(4, byteorder="big"))
 cltvDelta = 10
 cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
@@ -270,7 +259,7 @@ def createChannelUpdate(channel, node, u, a):
 nodeType = bytearray().fromhex("0101") #257
 RGBColor = 0    # <--very boring color
 bRGBColor = bytearray(RGBColor.to_bytes(3, "big"))
-addrLen = 1
+addrLen = 7
 bAddrLen = addrLen.to_bytes(2, "big")
 b1Addresses = bytearray([1])
 loopback = bytearray([127,0,0,1,0,42])  # a loopback addr port 127.0.0.1:42 for fun!
