@@ -6,3 +6,6 @@ matplotlib
 scipy
 python-igraph
 pycairo
+ecdsa
+base58
+chainside-btcpy

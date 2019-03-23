@@ -23,7 +23,7 @@ def writeSatoshisScidCSV(channels, filename):
         writer = writeCSV(fp)
         writer.writerow(["scid","satoshis"])
         for c in channels:
-            writer.writerow([c.scid.hex(),str(c.value)])
+            writer.writerow([c.scid.serialize().hex(),str(c.value)])
 
 
 
@@ -112,6 +112,8 @@ def listnodesJsonToObject(jn):
     nodesJson = jn["nodes"]
     return nodesJson
 
+
+
 def writeNetwork(network, gossipSequence, nodeSaveFile, channelSaveFile):
     """
     pickle write network to file.
@@ -180,19 +182,16 @@ def setRandSeed(s):
     seed(s)
 
 
-def getScid(height, tx):
+def calcNetworkValue(network):
     """
-    creates scid from block int and tx int
-    :param height: int
-    :param tx: int (between 1 and 1023 inclusive)
-    :return:scid bytearray
+    network value
+    :param network: network
+    :return:
     """
-    bheight = bytearray(height.to_bytes(3, "big"))
-    btx = bytearray(tx.to_bytes(3, "big"))
-    scidOutput = bytearray().fromhex("0001")  # output 1
-    bscid = bheight + btx + scidOutput
-
-    return bscid
+    networkValue = 0
+    for c in network.channels:
+        networkValue += c.value
+    return networkValue
 
 
 

@@ -3,6 +3,7 @@ import gossip
 import chain
 import argparse
 import importlib.util
+from bitcoin import SelectParams
 from common import graph, utility
 from os import path, mkdir
 import time
@@ -25,6 +26,8 @@ def main():
         raise ValueError(
             "Use --build and/or --gossip and/or --chain in cmd line to specify what actions to perform, (or set them to True in the config.py)")
 
+    init()
+
     if config.build:
         t0 = time.time()
         network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config)
@@ -32,17 +35,17 @@ def main():
         print("build network complete in", t1-t0)
         network.printNetworkStats()
     else:
-        network, gossipSequence = utility.loadNetwork(config.nodeSaveFile, config.channelSaveFile)
+        network, gossipSequence = utility.loadNetwork(config.nodesFile, config.channelsFile)
+
+    if config.chain:
+        chain.buildChain(config, network)
+        print("build chain complete")
 
     if config.gossip:
         t0 = time.time()
         network = gossip.gossip(config, network, gossipSequence)
         t1 = time.time()
         print("gossip complete in", t1-t0)
-
-    if config.chain:
-        chain.buildChain(config, network)
-        print("build chain complete")
 
     if args.tests: #TODO move tests to new function
         channelSum = 0
@@ -119,7 +122,7 @@ def overrideConfig(args, config):
         config.saveDir = args.saveDir
     if args.name != None:
         config.name = args.name
-        config.nodeFile, config.channelFile, config.gossipFile, config.scidSatoshisFile = utility.getSaveFiles(config.saveDir, config.name)
+        config.nodesFile, config.channelsFile, config.gossipFile, config.scidSatoshisFile = utility.getSaveFiles(config.saveDir, config.name)
     if args.channels != None:
         config.channelNum = args.channels
     if args.p != None:
@@ -147,6 +150,11 @@ def overrideConfig(args, config):
 
 
     return config
+
+
+def init():
+    SelectParams("regtest")
+
 
 main()
 

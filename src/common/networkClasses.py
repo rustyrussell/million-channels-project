@@ -5,6 +5,20 @@ from analysis import fundingReg
 
 #classes
 
+
+class Scid():
+    def __init__(self, height, tx, output=0):
+        self.height = height
+        self.tx = tx
+        self.output = output
+
+    def serialize(self):
+        bheight = bytearray(self.height.to_bytes(3, "big"))
+        btx = bytearray(self.tx.to_bytes(3, "big"))
+        bOutput = bytearray(self.output.to_bytes(2, "big"))
+        bscid = bheight + btx + bOutput
+        return bscid
+
 class Node:
     """
     Node class

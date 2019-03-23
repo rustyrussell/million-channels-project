@@ -1,6 +1,5 @@
 import os
 from common import utility, crypto
-from bitcoin import SelectParams
 import hashlib
 import time
 from copy import deepcopy
@@ -14,17 +13,16 @@ def gossip(config, network, gossipSequence):
     Each channel has 1 channel annoucement and 2 channel updates. Keys and scids are determined determinisically based on node id.
     """
     utility.setRandSeed(config.randSeed)
-    SelectParams("regtest")
-    initGossip(config.gossipSaveFile)
+    initGossip(config.gossipFile)
     t2 = time.time()
-    generateAllGossip(network, gossipSequence, config.gossipSaveFile, config.processNum)
+    generateAllGossip(network, gossipSequence, config.gossipFile, config.processNum)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
 
     return network
 
 
-def generateAllGossip(network, rawGossipSequence, gossipSaveFile, processNum):
+def generateAllGossip(network, rawGossipSequence, gossipFile, processNum):
     """
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
@@ -67,7 +65,7 @@ def generateAllGossip(network, rawGossipSequence, gossipSaveFile, processNum):
     pList = []
     l = Lock()
     for i in range(0, processNum):
-        p = Process(target=genGossip, args=(bundles[i],gossipSaveFile, l))
+        p = Process(target=genGossip, args=(bundles[i], gossipFile, l))
         p.start()
         pList += [p]
     for i in range(0, processNum):
@@ -75,7 +73,7 @@ def generateAllGossip(network, rawGossipSequence, gossipSaveFile, processNum):
 
 
 
-def genGossip(bundles, gossipSaveFile, l):
+def genGossip(bundles, gossipFile, l):
     """
     Given bundles, we create annoucements and updates for each channel in each bundle
     Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
@@ -92,7 +90,7 @@ def genGossip(bundles, gossipSaveFile, l):
             crypto.makeKeyOnDemand(genNode)
           
         for channel in channels:
-            scid = channel.scid
+            scid = channel.scid.serialize()
             value = channel.value
             node1 = channel.node1
             node2 = channel.node2
@@ -125,14 +123,14 @@ def genGossip(bundles, gossipSaveFile, l):
 
             # TODO: write every x number of channels
             if w == 100:
-                p = Process(target=writeProcess, args=(writeList,gossipSaveFile, l))
+                p = Process(target=writeProcess, args=(writeList,gossipFile, l))
                 pList += [p]
                 p.start()
                 writeList = []
                 w = 0
             w += 1
         # print("done with bundle", genNode.nodeid, "channel count:", genNode.channelCount)
-    p = Process(target=writeProcess, args=(writeList,gossipSaveFile, l))
+    p = Process(target=writeProcess, args=(writeList,gossipFile, l))
     pList += [p]
     p.start()
     # print("done with thread")
@@ -312,7 +310,7 @@ bMsglenA = bytearray(msglenA.to_bytes(2, byteorder="big"))
 msglenN = 149
 bMsglenN = bytearray(msglenN.to_bytes(2, byteorder="big"))
 
-def writeProcess(writeList, gossipSaveFile, l):
+def writeProcess(writeList, gossipFile, l):
     """
     open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
     :param: ba: serialized channel annoucement
@@ -328,15 +326,15 @@ def writeProcess(writeList, gossipSaveFile, l):
         bn2 = g[2][1]
 
         if ba != None:
-            writeChannelAnnouncement(ba, gossipSaveFile)
+            writeChannelAnnouncement(ba, gossipFile)
         if bu1 != None:
-            writeChannelUpdate(bu1, gossipSaveFile)
+            writeChannelUpdate(bu1, gossipFile)
         if bu2 != None:
-            writeChannelUpdate(bu2, gossipSaveFile)
+            writeChannelUpdate(bu2, gossipFile)
         if bn1 != None:
-            writeNodeAnnouncement(bn1, gossipSaveFile)
+            writeNodeAnnouncement(bn1, gossipFile)
         if bn2 != None:
-            writeNodeAnnouncement(bn2, gossipSaveFile)
+            writeNodeAnnouncement(bn2, gossipFile)
 
     l.release()
     return
