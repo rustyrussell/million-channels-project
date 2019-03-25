@@ -174,7 +174,7 @@ def spendToFunding(chan, txid, txout, txoi, objPrivMiner):
     objPrivN2 = pycrypto.PrivateKey(bPrivN2)
     objPubN1 = objPrivN1.pub(compressed=True)
     objPubN2 = objPrivN2.pub(compressed=True)
-    if objPubN1.compressed < objPubN2.compressed:
+    if objPubN1.compressed < objPubN2.compressed:   #lexicographical ordering
         multisig_script = MultisigScript(2, objPubN1, objPubN2, 2)
     else:
         multisig_script = MultisigScript(2, objPubN2, objPubN1, 2)
