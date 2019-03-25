@@ -5,7 +5,7 @@ import argparse
 import importlib.util
 from bitcoin import SelectParams
 from common import graph, utility
-from os import path, mkdir
+from os import path, mkdir, chdir
 import time
 
 def main():
@@ -39,6 +39,7 @@ def main():
 
     if config.chain:
         chain.buildChain(config, network)
+        utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
         print("build chain complete")
 
     if config.gossip:

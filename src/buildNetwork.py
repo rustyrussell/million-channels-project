@@ -40,7 +40,6 @@ def buildNetwork(config):
     scids(config, network)
     # create details of nodes
     buildNodeDetails(config, targetNetwork, network)
-    utility.writeSatoshisScidCSV(network.channels, config.scidSatoshisFile)
     utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
     return network, targetNetwork, gossipSequence
 

@@ -33,9 +33,9 @@ This network will be used for testing routing algorithms and channel syncing.
 ### Generating network or gossip from scratch
 
 1. main.py can create the network and/or the gossip messages. 
-   Running main.py with --build_only only builds and saves the network. 
-   Running main.py with --gossip_only only generates gossip. 
-   Running without either --build_only or --gossip_only does both.
+   Running main.py with --build  builds and saves the network. 
+   Running main.py with --gossip generates gossip. 
+   Running main.py with --chain generates the chain (this is currently very slow, but functional). 
 
 2. building the network consists of analyzing a provided network and scaling it up. 
    Therefore, you need your own network data and set analysisListChannelsFile 

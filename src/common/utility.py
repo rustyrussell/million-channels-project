@@ -14,18 +14,6 @@ def loadCSV(fp):
     reader = csv.reader(fp)
     return reader
 
-def writeCSV(fp):
-    writer = csv.writer(fp)
-    return writer
-
-def writeSatoshisScidCSV(channels, filename):
-    with open(filename, "w", newline="") as fp:
-        writer = writeCSV(fp)
-        writer.writerow(["scid","satoshis"])
-        for c in channels:
-            writer.writerow([c.scid.serialize().hex(),str(c.value)])
-
-
 
 def loadJson(fp):
     """

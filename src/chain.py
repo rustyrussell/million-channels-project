@@ -13,15 +13,26 @@ import time
 def buildChain(config, network):
     chanBlocks = blocksCoinbaseSpends(config, network.channels)
     blocksToMine = getNumBlocksToMine(chanBlocks)
-    objRpcB, objPrivMiner, strAddrMiner, strBlockHashes = init(config, network, blocksToMine)
+    objRpcB, objPrivMiner, strAddrMiner, strBlockHashes = init(config, blocksToMine)
     cbTxs = getCoinbaseTxids(objRpcB)
     spendBlocks, txs = onChainCbTxs(config, chanBlocks, cbTxs, objPrivMiner)
     #spend coinbase transactions that are in spendBlocks
     sendRawTxs(objRpcB, spendBlocks, strAddrMiner)
     #fund contracts
-    fundingBlocks = onChainFundingTxs(config, txs, network.channels, objPrivMiner)
-    sendRawTxs(objRpcB, fundingBlocks, strAddrMiner)
+    fundingBlocks, txidToChan = onChainFundingTxs(config, txs, network.channels, objPrivMiner)
+    blockHashes = sendRawTxs(objRpcB, fundingBlocks, strAddrMiner)
+    setRealScids(objRpcB, txidToChan, blockHashes)
     killBitcoind()
+
+
+def setRealScids(objRpcB, txidToChan, blockHashes):
+    for hash in blockHashes:
+        txids = objRpcB.call("getblock", hash)["tx"]
+        for i in range(1, len(txids)):
+            txid = txids[i]
+            scidtxi = i
+            chan = txidToChan[txid]
+            chan.scid.tx = scidtxi
 
 
 def blocksCoinbaseSpends(config, channels):
@@ -119,6 +130,7 @@ def spendCb(config, objTx, outputs, cbSolver, bPubMiner):
 
 def onChainFundingTxs(config, txs, channels, objPrivMiner):
     fundingBlocks = []
+    txidToChan = {}
     txi = 0
     txoi = 0
     j = 1
@@ -129,7 +141,8 @@ def onChainFundingTxs(config, txs, channels, objPrivMiner):
         txid = txs[txi].txid
         fundingTx = spendToFunding(chan, txid, txout, txoi, objPrivMiner)
         block += [fundingTx]
-
+        txidToChan[fundingTx.txid] = chan
+        print("scid:", chan.scid.tx, chan.scid.height, "txid:", fundingTx.txid, "fundingtx", fundingTx.hexlify())
         if j == config.maxFundingTxPerBlock:
             fundingBlocks += [block]
             block = []
@@ -145,7 +158,7 @@ def onChainFundingTxs(config, txs, channels, objPrivMiner):
     if block != []:
         fundingBlocks += [block]
 
-    return fundingBlocks
+    return fundingBlocks, txidToChan
 
 
 def spendToFunding(chan, txid, txout, txoi, objPrivMiner):
@@ -161,10 +174,14 @@ def spendToFunding(chan, txid, txout, txoi, objPrivMiner):
     objPrivN2 = pycrypto.PrivateKey(bPrivN2)
     objPubN1 = objPrivN1.pub(compressed=True)
     objPubN2 = objPrivN2.pub(compressed=True)
-    v = int(chan.value)
+    if objPubN1.compressed < objPubN2.compressed:
+        multisig_script = MultisigScript(2, objPubN1, objPubN2, 2)
+    else:
+        multisig_script = MultisigScript(2, objPubN2, objPubN1, 2)
 
-    multisig_script = MultisigScript(2, objPubN1, objPubN2, 2)
+    v = int(chan.value)
     p2wsh_multisig = P2wshV0Script(multisig_script)
+    print("scid:", chan.scid.tx, chan.scid.height, "multisig:", p2wsh_multisig.hexlify())
     unsignedP2wsh = MutableTransaction(version=0,
                                        ins=[TxIn(txid=txid,
                                                  txout=txoi,
@@ -184,7 +201,7 @@ def spendToFunding(chan, txid, txout, txoi, objPrivMiner):
 
 #init functions
 
-def init(config, network, blocksToMine):
+def init(config, blocksToMine):
     """
     clears any old regtest blocks
     creates rpc
@@ -223,13 +240,15 @@ def clearBitcoinChain(config):
 
 
 
-
 #calling bitcoind
 def startBitcoind(config):
+    currPath = os.getcwd()
     os.chdir(config.bitcoinSrcDir)
     e = subprocess.run(["./bitcoind", "--daemon", "--conf=" + config.bitcoinConf, "--txindex"])
     if e.returncode == 1:
         raise ConnectionRefusedError("Bitcoind is already running. pkill bitcoind before running.")
+    os.chdir(currPath)
+
 
 def waitForBitcoind(objRpcB):
     # TODO Fix this sleep because it is very hacky
@@ -273,14 +292,22 @@ def getCoinbaseTxids(objRpcB):
 
 
 def sendRawTxs(objRpcB, spendBlocks, strAddrMiner):
+    """
+    sends raw transactions and creates blocks. All txs will have at least 6 confirmations.
+    :param objRpcB:
+    :param spendBlocks: lists of "blocks" that are lists of transactions. Txs in each "block" is assumed to fit in a single bitcoin block
+    :param strAddrMiner: miner address
+    :return: hashes of non-empty blocks (so all blocks except last 5 confirmations)
+    """
+    blockHashes = []
     for i in range(0, len(spendBlocks)):
         block = spendBlocks[i]
         for j in range(0, len(block)):
             tx = block[j]
             xtx = tx.hexlify()
-            r = objRpcB.call("sendrawtransaction", xtx, False)
-        mineNBlocks(objRpcB, strAddrMiner, 1)
+            txid = objRpcB.call("sendrawtransaction", xtx, False)
+        blockHashes += mineNBlocks(objRpcB, strAddrMiner, 1)
     mineNBlocks(objRpcB, strAddrMiner, 5)  # get 6 confirmations on last group of transactions
-    return
+    return blockHashes
 
 

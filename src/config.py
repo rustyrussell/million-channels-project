@@ -20,8 +20,8 @@ nodesFile = saveDir + name + "/" + name + ".nodes"
 gossipFile = saveDir + name + "/" + name + ".gossip"
 lightningDataDir = ""
 historicalData = "../data/historical_data.csv"
-bitcoinSrcDir = "/your/path/here"
-bitcoinDataDir = "/your/path/here"
+bitcoinSrcDir = "/home/jnetti/bitcoin/bitcoin/src/"
+bitcoinDataDir = "/home/jnetti/.bitcoin/regtest/"
 bitcoinConf = "regtest.conf"
 
 # cannot be changed by user:
