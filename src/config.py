@@ -20,8 +20,8 @@ nodesFile = saveDir + name + "/" + name + ".nodes"
 gossipFile = saveDir + name + "/" + name + ".gossip"
 lightningDataDir = ""
 historicalData = "../data/historical_data.csv"
-bitcoinSrcDir = "/home/jnetti/bitcoin/bitcoin/src/"
-bitcoinDataDir = "/home/jnetti/.bitcoin/regtest/"
+bitcoinSrcDir = "/your/path/here/"
+bitcoinDataDir = "/your/path/here"
 bitcoinConf = "regtest.conf"
 
 # cannot be changed by user:
@@ -29,6 +29,6 @@ lightningrpc = lightningDataDir + "lightning-rpc"
 coinbaseReward = 5000000000
 maxOutputsPerTx = 10
 confirmations = 6
-maxFundingTxPerBlock = 1001 # 1000 transactions in a block plus coinbase (which is at index 0)
+maxTxPerBlock = 1001 # 1000 transactions in a block plus coinbase (which is at index 0)
 iCoinbasePriv = 100000000
 bCoinbasePriv = bytearray(iCoinbasePriv.to_bytes(32, "big"))

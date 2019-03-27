@@ -1,6 +1,8 @@
 from random import randint
 import common.wif as wif
 from bitcoin.wallet import CBitcoinSecret, P2PKHBitcoinAddress
+from btcpy.structs.crypto import PrivateKey
+from multiprocessing import Pool
 
 
 #cryptography functions
@@ -83,4 +85,25 @@ def sign(key, h):
     sig, i = key.sign_compact(h)
     return sig
 
+
+def parallelBtcpyPubKeys(processNum, nodes):
+    i = 0
+    # bundles = [[] for i in range(0, processNum)]
+    nodeids = []
+    for n in nodes:
+        nodeids += [n.nodeid]
+    p = Pool(processes=processNum)
+    tupsIdPub = p.map(createBtcpyPubKey, nodeids)
+    dictIdToPub = {}
+    for tup in tupsIdPub:
+        dictIdToPub[str(tup[0])] = tup[1]
+    return dictIdToPub
+
+
+def createBtcpyPubKey(nodeid):
+    iPriv = nodeid + 1
+    bPriv = iPriv.to_bytes(32, "big")
+    objPriv = PrivateKey(bPriv)
+    objPub = objPriv.pub(compressed=True)
+    return (nodeid, objPub)
 

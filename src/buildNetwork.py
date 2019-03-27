@@ -60,7 +60,7 @@ def scids(config, network):
     for i in range(0, len(network.channels)):
         chan = network.channels[i]
         chan.setScid(networkClasses.Scid(scidHeight, scidTx))
-        scidHeight, scidTx = incrementScid(config.maxFundingTxPerBlock, scidHeight, scidTx)
+        scidHeight, scidTx = incrementScid(config.maxTxPerBlock, scidHeight, scidTx)
 
 
 def getMaxChannels(targetNetwork):

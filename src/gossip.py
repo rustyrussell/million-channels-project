@@ -214,17 +214,10 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     u.setFeePropMill(feePropMill)
     #value = channel.value
     #bValue = bytearray(value.to_bytes(8, byteorder="big"))
-    #u.setHTLCMaxMSat(bValue) #TODO: once final capacity generation is inplace, uncomment this line. 
-
-    if channel.scid.tx == 8:
-        print("tx 8")
+    #u.setHTLCMaxMSat(bValue) #TODO: once final capacity generation is inplace, uncomment this line.
 
     u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
-
-    # if u1.serialize(True).hex() == "0102f96bb17fabf7e396a206184c269a8ddf9fef83ee4ce341afd19c99b4ec5b17fa6247194cc2797f33c8a1a3d138f5bc10990ffaf98e1277ba35858285e950ecb306226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f00007400003b00005c9190aa8080000a0000000000002710000003e8000003e8":
-    #     print("bad sig")
-
 
     return u1, u2
 
