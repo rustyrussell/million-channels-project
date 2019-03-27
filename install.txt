@@ -1,4 +1,7 @@
 to install igraph:
+sudo apt-get install python3-venv
+cd million-channels-project
+python3 -m venv .
 . venv/bin/activate
 sudo apt install build-essential python-dev libxml2 libxml2-dev zlib1g-dev
 pip3 install python-igraph

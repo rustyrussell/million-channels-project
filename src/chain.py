@@ -82,12 +82,11 @@ def blocksFundingTxs(maxTxPerBlock, lstFundingTxs):
         m = i + maxTxPerBlock
     while i < len(lstFundingTxs):
         lstFundingBlocks += [lstFundingTxs[i:m]]
-        prevM = m
+        i = m
         if i + maxTxPerBlock >= len(lstFundingTxs):
             m = len(lstFundingTxs)
         else:
-            m = i + maxTxPerBlock
-        i = prevM
+            m = m + maxTxPerBlock
 
     return lstFundingBlocks
 

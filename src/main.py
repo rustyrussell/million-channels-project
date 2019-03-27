@@ -38,9 +38,11 @@ def main():
         network, gossipSequence = utility.loadNetwork(config.nodesFile, config.channelsFile)
 
     if config.chain:
+        t0 = time.time()
         chain.buildChain(config, network)
+        t1 = time.time()
+        print("build chain complete in", t1-t0)
         utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
-        print("build chain complete")
 
     if config.gossip:
         t0 = time.time()
