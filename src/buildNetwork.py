@@ -15,7 +15,7 @@ import bisect
 
 def buildNetwork(config):
     #load snapshot of network
-    fp = open(config.listchannelsFile)
+    fp = open(config.listchannelsFile, encoding="utf-8")
     jn = utility.loadJson(fp)
     targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
     targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
@@ -340,7 +340,7 @@ def buildNodeDetails(config, targetNetwork, network=None):
     :param network:
     :return:
     """
-    fp = open(config.listnodesFile)
+    fp = open(config.listnodesFile, encoding="utf-8")
     jn = utility.loadJson(fp)
     targetNodesJson = utility.listnodesJsonToObject(jn)
     # filter out node announcements that don't correspond to any channel announcement

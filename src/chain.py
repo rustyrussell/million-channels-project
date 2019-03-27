@@ -14,7 +14,7 @@ def buildChain(config, network):
     chanBlocks = blocksCoinbaseSpends(config, network.channels)
     blocksToMine = getNumBlocksToMine(chanBlocks)
     objRpcB, objPrivMiner, strAddrMiner, strBlockHashes = init(config, blocksToMine)
-    cbTxs = getCoinbaseTxids(objRpcB)
+    cbTxs = getCoinbaseTxids(config, objRpcB)
     lstSpendBlocks, lstChansOutBlocks = parallelCbSpends(config, chanBlocks, cbTxs, objPrivMiner)
     #spend coinbase transactions that are in spendBlocks
     xlstSpendBlocks = txBlocksToHash(lstSpendBlocks)
@@ -68,25 +68,25 @@ def getNumBlocksToMine(chanBlocks):
     cbs = 0
     for block in chanBlocks:
         cbs += len(block)
-    blocksToMine = cbs + 100
+    blocksToMine = cbs
     return blocksToMine
 
 
-def blocksFundingTxs(maxFundingTxPerBlock, lstFundingTxs):
+def blocksFundingTxs(maxTxPerBlock, lstFundingTxs):
     lstFundingBlocks = []
 
     i = 0
-    if i + maxFundingTxPerBlock >= len(lstFundingTxs):
+    if i + maxTxPerBlock >= len(lstFundingTxs):
         m = len(lstFundingTxs)
     else:
-        m = i + maxFundingTxPerBlock
+        m = i + maxTxPerBlock
     while i < len(lstFundingTxs):
         lstFundingBlocks += [lstFundingTxs[i:m]]
         prevM = m
-        if i + maxFundingTxPerBlock >= len(lstFundingTxs):
+        if i + maxTxPerBlock >= len(lstFundingTxs):
             m = len(lstFundingTxs)
         else:
-            m = i + maxFundingTxPerBlock
+            m = i + maxTxPerBlock
         i = prevM
 
     return lstFundingBlocks
@@ -287,14 +287,15 @@ def init(config, blocksToMine):
     clearBitcoinChain(config)
     startBitcoind(config)
     objRpcB = Proxy(btc_conf_file=config.bitcoinDataDir + config.bitcoinConf)
-    waitForBitcoind(objRpcB)
+    objRpcB = waitForBitcoind(config, objRpcB)
     objPrivMiner = pycrypto.PrivateKey(config.bCoinbasePriv)
     pubMiner = objPrivMiner.pub(compressed=True)
     xPubMiner = str(pubMiner)
     strAddrMiner = str(pubMiner.to_address(mainnet=False))
-    addPrivToBitcoind(objRpcB, config.iCoinbasePriv, xPubMiner, strAddrMiner)
+    objRpcB = addPrivToBitcoind(config, objRpcB, config.iCoinbasePriv, xPubMiner, strAddrMiner)
     strBlockHashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", blocksToMine, strAddrMiner)
-
+    # 100 extra blocks so that coinbases mature
+    r, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", 100, strAddrMiner)
     return objRpcB, objPrivMiner, strAddrMiner, strBlockHashes
 
 
@@ -309,52 +310,45 @@ def clearBitcoinChain(config):
         shutil.rmtree(config.bitcoinDataDir + "chainstate")
     if os.path.exists(config.bitcoinDataDir + "indexes"):
         shutil.rmtree(config.bitcoinDataDir + "indexes")
+    if os.path.exists(config.bitcoinDataDir + "wallets"):
+        shutil.rmtree(config.bitcoinDataDir + "wallets")
     if os.path.exists(config.bitcoinDataDir + "wallet.dat"):
         os.remove(config.bitcoinDataDir + "wallet.dat")
+    if os.path.exists(config.bitcoinDataDir + "mempool.dat"):
+        os.remove(config.bitcoinDataDir + "mempool.dat")
 
 
-#calling bitcoind
+#starting bitcoind
 def startBitcoind(config):
     currPath = os.getcwd()
     os.chdir(config.bitcoinSrcDir)
-    e = subprocess.run(["./bitcoind", "--daemon", "--conf=" + config.bitcoinConf, "--txindex"])
+    e = subprocess.run(["./bitcoind", "--daemon", "--conf=" + config.bitcoinDataDir + "/" + config.bitcoinConf, "--txindex"])
     if e.returncode == 1:
         raise ConnectionRefusedError("Bitcoind is already running. pkill bitcoind before running.")
     os.chdir(currPath)
 
 
-def waitForBitcoind(objRpcB):
+def waitForBitcoind(config, objRpcB):
     # TODO Fix this sleep because it is very hacky
     time.sleep(4)
     while True:
         try:
-            objRpcB.call("getrpcinfo")
+            r, objRpcB = bitcoinCli(config, objRpcB, "getrpcinfo")
             return objRpcB
         except InWarmupError:
             time.sleep(.5)
+    return objRpcB
 
-
-def addPrivToBitcoind(objRpcB, iPriv, xPubMiner, strAddrMiner):
+def addPrivToBitcoind(config, objRpcB, iPriv, xPubMiner, strAddrMiner):
     xPriv = iPriv.to_bytes(32, "big").hex()
     wifPriv = wif.privToWif(xPriv)
-    objRpcB.call("importprivkey", wifPriv)
-    objRpcB.call("importpubkey", xPubMiner)
-    objRpcB.call("importaddress", strAddrMiner)
-
+    r, objRpcB = bitcoinCli(config, objRpcB, "importprivkey", wifPriv)
+    r, objRpcB = bitcoinCli(config, objRpcB, "importpubkey", xPubMiner)
+    r, objRpcB = bitcoinCli(config, objRpcB, "importaddress", strAddrMiner)
+    return objRpcB
 
 def killBitcoind():
     subprocess.run(["pkill", "bitcoind"])
-
-
-def mineNBlocks(config, objRpcB, strAddrMiner, blocksToMine):
-    while True:
-        try:
-            strBlockHashes = objRpcB.call("generatetoaddress", blocksToMine, strAddrMiner)
-            break
-        except BrokenPipeError:
-            objRpcB = Proxy(btc_conf_file=config.bitcoinDataDir + config.bitcoinConf)
-
-    return strBlockHashes
 
 
 def bitcoinCli(config, objRpcB, cmd, *args):
@@ -368,12 +362,12 @@ def bitcoinCli(config, objRpcB, cmd, *args):
     return r, objRpcB
 
 
-def getCoinbaseTxids(objRpcB):
-    unspentTxs = objRpcB.call("listunspent")
+def getCoinbaseTxids(config, objRpcB):
+    unspentTxs, objRpcB = bitcoinCli(config, objRpcB, "listunspent")
     txs = []
     for tx in unspentTxs:
         txid = tx["txid"]
-        r = objRpcB.call("gettransaction", txid)
+        r, objRpcB = bitcoinCli(config, objRpcB, "gettransaction", txid)
         xtx = r["hex"]
         txs += [xtx]
     return txs
