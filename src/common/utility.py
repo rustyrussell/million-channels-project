@@ -24,12 +24,13 @@ def loadJson(fp):
     return json.load(fp)
 
 
-def getSaveFiles(datadir, name):
+def getSaveFiles(datadir, bitcoinBaseDataDir, name):
     nodeSaveFile = datadir + name + "/" + name + ".nodes"
     channelSaveFile = datadir + name + "/" + name + ".channels"
     gossipSaveFile = datadir + name + "/" + name + ".gossip"
     scidSatoshisFile = datadir + name + "/" + "scidSatoshis" + ".csv"
-    return nodeSaveFile, channelSaveFile, gossipSaveFile, scidSatoshisFile
+    bitcoinDataDir = bitcoinBaseDataDir + name 
+    return nodeSaveFile, channelSaveFile, gossipSaveFile, scidSatoshisFile, bitcoinDataDir
 
 def search(a, x):
     """

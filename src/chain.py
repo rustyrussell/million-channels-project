@@ -285,7 +285,7 @@ def init(config, blocksToMine):
     """
     clearBitcoinChain(config)
     startBitcoind(config)
-    objRpcB = Proxy(btc_conf_file=config.bitcoinDataDir + config.bitcoinConf)
+    objRpcB = Proxy(btc_conf_file=config.bitcoinConfPath)
     objRpcB = waitForBitcoind(config, objRpcB)
     objPrivMiner = pycrypto.PrivateKey(config.bCoinbasePriv)
     pubMiner = objPrivMiner.pub(compressed=True)
@@ -301,27 +301,17 @@ def init(config, blocksToMine):
 def clearBitcoinChain(config):
     """
     Delete the blocks dir and chainstate dir
-    :return:
     """
-    if os.path.exists(config.bitcoinDataDir + "blocks"):
-        shutil.rmtree(config.bitcoinDataDir + "blocks")
-    if os.path.exists(config.bitcoinDataDir + "chainstate"):
-        shutil.rmtree(config.bitcoinDataDir + "chainstate")
-    if os.path.exists(config.bitcoinDataDir + "indexes"):
-        shutil.rmtree(config.bitcoinDataDir + "indexes")
-    if os.path.exists(config.bitcoinDataDir + "wallets"):
-        shutil.rmtree(config.bitcoinDataDir + "wallets")
-    if os.path.exists(config.bitcoinDataDir + "wallet.dat"):
-        os.remove(config.bitcoinDataDir + "wallet.dat")
-    if os.path.exists(config.bitcoinDataDir + "mempool.dat"):
-        os.remove(config.bitcoinDataDir + "mempool.dat")
+    if os.path.exists(config.bitcoinDataDir):
+        shutil.rmtree(config.bitcoinDataDir)
+    os.makedirs(config.bitcoinDataDir, exist_ok=True)
 
 
 #starting bitcoind
 def startBitcoind(config):
     currPath = os.getcwd()
     os.chdir(config.bitcoinSrcDir)
-    e = subprocess.run(["./bitcoind", "--daemon", "--conf=" + config.bitcoinDataDir + "/" + config.bitcoinConf, "--txindex"])
+    e = subprocess.run(["./bitcoind", "--daemon", "--conf=" + config.bitcoinConfPath, "--datadir=" + config.bitcoinDataDir, "--txindex"])
     if e.returncode == 1:
         raise ConnectionRefusedError("Bitcoind is already running. pkill bitcoind before running.")
     os.chdir(currPath)
@@ -356,7 +346,7 @@ def bitcoinCli(config, objRpcB, cmd, *args):
             r = objRpcB.call(cmd, *args)
             break
         except BrokenPipeError:
-            objRpcB = Proxy(btc_conf_file=config.bitcoinDataDir + config.bitcoinConf)
+            objRpcB = Proxy(btc_conf_file=config.bitcoinConfPath)
 
     return r, objRpcB
 

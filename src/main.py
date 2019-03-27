@@ -106,6 +106,7 @@ def parse():
     parse.add_argument("--gossipFile", type=str)
     parse.add_argument("--lightningDataDir", type=str)
     parse.add_argument("--bitcoindPath", type=str)
+    parse.add_argument("--bitcoinDataDir", type=str)
 
     args = parse.parse_args()
     return args
@@ -125,7 +126,7 @@ def overrideConfig(args, config):
         config.saveDir = args.saveDir
     if args.name != None:
         config.name = args.name
-        config.nodesFile, config.channelsFile, config.gossipFile, config.scidSatoshisFile = utility.getSaveFiles(config.saveDir, config.name)
+        config.nodesFile, config.channelsFile, config.gossipFile, config.scidSatoshisFile, config.bitcoinDataDir = utility.getSaveFiles(config.saveDir, config.bitcoinBaseDataDir, config.name)
     if args.channels != None:
         config.channelNum = args.channels
     if args.p != None:
@@ -150,7 +151,8 @@ def overrideConfig(args, config):
         config.lightningDataDir = args.lightningDataDir
     if args.bitcoindPath != None:
         config.bitcoindPath = args.bitcoindPath
-
+    if args.bitcoinDataDir != None:
+        config.bitcoinDataDir = args.bitcoinDataDir
 
     return config
 
