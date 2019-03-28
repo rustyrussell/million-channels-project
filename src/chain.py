@@ -50,7 +50,7 @@ def blocksCoinbaseSpends(config, channels):
             if currOutputsValue > config.coinbaseReward:
                 print("larger value than reward")
             currOutputs = [chan]
-            currOutputsValue = config.fee
+            currOutputsValue = chan.value + config.fee
 
         if len(coinbaseTxs) == txPerBlock:
             blocks += [coinbaseTxs]
@@ -181,8 +181,6 @@ def spendCb(fee, reward, objTx, outputs, cbSolver, bPubMiner):
 
     change = reward - totVal - fee
     outsWithChange = outs + [TxOut(value=change, n=0, script_pubkey=objTx.outs[0].script_pubkey)]
-    if change < 0:
-        print("negative", change)
     unsignedSegwit = MutableTransaction(version=1,
                                         ins=[TxIn(txid=objTx.txid,
                                                   txout=0,

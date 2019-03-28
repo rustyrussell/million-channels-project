@@ -39,7 +39,10 @@ def main():
 
     if config.chain:
         t0 = time.time()
-        chain.buildChain(config, network)
+        try: 
+            chain.buildChain(config, network)
+        finally:
+            chain.killBitcoind()
         t1 = time.time()
         print("build chain complete in", t1-t0)
         utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)

@@ -27,7 +27,7 @@ bitcoinDataDir = bitcoinBaseDataDir + name + "/"
 # cannot be changed by user:
 lightningrpc = lightningDataDir + "lightning-rpc"
 coinbaseReward = 5000000000    #50 bitcoins
-maxOutputsPerTx = 10
+maxOutputsPerTx = 100
 confirmations = 6
 maxTxPerBlock = 1000 # 1000 transactions in a block plus coinbase (which is at index 0)
 iCoinbasePriv = 100000000
