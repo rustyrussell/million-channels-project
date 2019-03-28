@@ -29,7 +29,9 @@ This network will be used for testing routing algorithms and channel syncing.
 
 3. Change regtest halving constant (consensus.nSubsidyHalvingInterval) in bitcoin/src/chainparams.cpp from 150 to 21000000. Then, ./configure and make bitcoin.
 
-4. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
+4. Set fields in config.py that are currently set to /your/path/here (or pass in cmdline args to set them)
+
+5. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
     `./lightning-cli listchannels` <-- should return ~1M channels  
 
 ### Generating network or gossip from scratch

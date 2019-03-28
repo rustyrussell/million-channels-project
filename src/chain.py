@@ -47,6 +47,8 @@ def blocksCoinbaseSpends(config, channels):
             currOutputsValue += value + config.fee
         else:
             coinbaseTxs += [currOutputs]
+            if currOutputsValue > config.coinbaseReward:
+                print("larger value than reward")
             currOutputs = [chan]
             currOutputsValue = config.fee
 
@@ -120,6 +122,8 @@ def parallelCbSpends(config, lstBlocks, lstCbTxs, objPrivMiner):
                 p += 1
 
 
+    print("length of list blocks", len(lstBlocks))
+
     for b in range(0, len(bundles)):
         bundle = bundles[b]
         bundles[b] = (config.fee, config.coinbaseReward, objPrivMiner, len(lstBlocks), bundle)
@@ -177,6 +181,8 @@ def spendCb(fee, reward, objTx, outputs, cbSolver, bPubMiner):
 
     change = reward - totVal - fee
     outsWithChange = outs + [TxOut(value=change, n=0, script_pubkey=objTx.outs[0].script_pubkey)]
+    if change < 0:
+        print("negative", change)
     unsignedSegwit = MutableTransaction(version=1,
                                         ins=[TxIn(txid=objTx.txid,
                                                   txout=0,
@@ -292,7 +298,19 @@ def init(config, blocksToMine):
     xPubMiner = str(pubMiner)
     strAddrMiner = str(pubMiner.to_address(mainnet=False))
     objRpcB = addPrivToBitcoind(config, objRpcB, config.iCoinbasePriv, xPubMiner, strAddrMiner)
-    strBlockHashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", blocksToMine, strAddrMiner)
+    hundredBlockRounds = blocksToMine // 1000
+    remainder = blocksToMine % 1000
+    print(hundredBlockRounds)
+    strBlockHashes = []
+    for i in range(0, hundredBlockRounds):
+        hashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", 1000 , strAddrMiner)
+        print(i)
+        strBlockHashes += hashes
+    if remainder != 0:
+        hashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", remainder, strAddrMiner)
+        strBlockHashes += hashes
+
+    print(len(strBlockHashes))
     # 100 extra blocks so that coinbases mature
     r, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", 100, strAddrMiner)
     return objRpcB, objPrivMiner, strAddrMiner, strBlockHashes

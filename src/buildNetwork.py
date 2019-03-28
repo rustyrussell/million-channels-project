@@ -251,7 +251,8 @@ def capacityDistribution(config, network, targetNetwork):
     scaledMaxFunding = config.maxFunding/interval
     while len(capList) < nodeNum:
         x = powerLawReg.randToPowerLaw(params)
-        while x == 0 or x > scaledMaxFunding:
+        #x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain. We do this because coinbase outputs -> segwit outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
+        while x == 0 or x > scaledMaxFunding or (x + (2 * config.fee)) > config.coinbaseReward:
             x = powerLawReg.randToPowerLaw(params)
         xSatoshis = round(x * interval)
         bisect.insort_left(capList, xSatoshis)
