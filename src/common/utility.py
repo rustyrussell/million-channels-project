@@ -29,7 +29,7 @@ def getSaveFiles(datadir, bitcoinBaseDataDir, name):
     channelSaveFile = datadir + name + "/" + name + ".channels"
     gossipSaveFile = datadir + name + "/" + name + ".gossip"
     scidSatoshisFile = datadir + name + "/" + "scidSatoshis" + ".csv"
-    bitcoinDataDir = bitcoinBaseDataDir + name 
+    bitcoinDataDir = bitcoinBaseDataDir + name + "/" 
     return nodeSaveFile, channelSaveFile, gossipSaveFile, scidSatoshisFile, bitcoinDataDir
 
 def search(a, x):
@@ -152,6 +152,8 @@ def loadNetwork(nodeSaveFile, channelSaveFile):
         node1 = nodes[chan.node1id]
         node2 = nodes[chan.node2id]
         channel = networkClasses.Channel(node1, node2, scid=chan.scid, value=chan.value)
+        channel.setN1ToWrite(chan.n1ToWrite)
+        channel.setN2ToWrite(chan.n2ToWrite)
         channels += [channel]
         es += [(channel.node1.nodeid, channel.node2.nodeid)]
     f2.close()

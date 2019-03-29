@@ -30,6 +30,7 @@ def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, processN
     Bundles will be assigned to each process.
     Last, we make a group of processes running genGossip
     """
+
     channels = network.channels
     network.fullConnNodes.sort(key=utility.sortByNodeId, reverse=False)
     nodes = network.getNodes()
@@ -70,7 +71,6 @@ def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, processN
         pList += [p]
     for i in range(0, processNum):
         pList[i].join()
-
 
 
 def genGossip(bundles, gossipFile, scidFile, l):

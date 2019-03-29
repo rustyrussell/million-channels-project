@@ -141,6 +141,15 @@ class Channel:
         else:
             self.channelid = str(self.node1.nodeid) + str(self.node2.nodeid)
 
+
+    def setNodeToWrite(self, node):
+        if self.node1 == node:
+            self.setN1ToWrite(True) 
+        elif self.node2 == node:
+            self.setN2ToWrite(True)
+        else:
+            raise KeyError("cannot set node to write: node not in channel")
+
     def setNode1(self, node1):
         self.node1 = node1
 
@@ -175,7 +184,8 @@ class Chan:
         self.node2id = channel.node2.nodeid
         self.scid = channel.scid
         self.value = channel.value
-
+        self.n1Write = channel.n1Write
+        self.n2Write = channel.n2Write
 
 class Network:
     """

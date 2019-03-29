@@ -249,10 +249,11 @@ def capacityDistribution(config, network, targetNetwork):
     params = targetNetwork.analysis.nodeCapacityInNetPowLawParams[0]
     interval = targetNetwork.analysis.nodeCapacityInNetPowLawParams[2]
     scaledMaxFunding = config.maxFunding/interval
+
     while len(capList) < nodeNum:
         x = powerLawReg.randToPowerLaw(params)
         #x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain. We do this because coinbase outputs -> segwit outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
-        while x == 0 or x > scaledMaxFunding or (x + (2 * config.fee)) > config.coinbaseReward:
+        while x == 0 or x > scaledMaxFunding or (x > (config.coinbaseReward-(2*config.fee))/interval):
             x = powerLawReg.randToPowerLaw(params)
         xSatoshis = round(x * interval)
         bisect.insort_left(capList, xSatoshis)
@@ -381,7 +382,7 @@ def buildNodeDetails(config, targetNetwork, network=None):
         except KeyError:
             noNodeAnnounce += 1
 
-    nodesCopy = network.fullConnNodes.copy()
+    nodesCopy = network.getNodes().copy()
     nodeNum = len(nodesCopy)
     shuffle(nodesCopy)
     shuffledNodes = nodesCopy
@@ -422,6 +423,15 @@ def buildNodeDetails(config, targetNetwork, network=None):
         node = shuffledNodes[j]
         node.setAddrType(None)
         node.setAnnounce(False)
+
+
+    setChannelsToAnnounceNodes(shuffledNodes)
+
+
+def setChannelsToAnnounceNodes(nodes):
+    for node in nodes:
+        if node.announce:
+            node.channels[0].setNodeToWrite(node)
 
 
 def setAllChannelsDefaultValue(network, value):
