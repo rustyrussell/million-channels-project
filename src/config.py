@@ -2,6 +2,7 @@
 build = False
 gossip = False
 chain = False
+writeNodes = False
 name = "1M"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
 channelNum = 1000000
 maxChannels =  1000  # "default"  will base it off of a directly scaled snapshot of the network, but it will lead to very few nodes

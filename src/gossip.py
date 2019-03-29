@@ -15,14 +15,14 @@ def gossip(config, network, gossipSequence):
     utility.setRandSeed(config.randSeed)
     initGossip(config.gossipFile, config.scidSatoshisFile, len(network.channels))
     t2 = time.time()
-    generateAllGossip(network, gossipSequence, config.gossipFile, config.scidSatoshisFile, config.processNum)
+    generateAllGossip(network, gossipSequence, config.gossipFile, config.scidSatoshisFile, config.writeNodes, config.processNum)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
 
     return network
 
 
-def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, processNum):
+def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, writeNodes, processNum):
     """
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
@@ -66,14 +66,14 @@ def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, processN
     pList = []
     l = Lock()
     for i in range(0, processNum):
-        p = Process(target=genGossip, args=(bundles[i], gossipFile, scidFile,l))
+        p = Process(target=genGossip, args=(bundles[i], gossipFile, scidFile, writeNodes, l))
         p.start()
         pList += [p]
     for i in range(0, processNum):
         pList[i].join()
 
 
-def genGossip(bundles, gossipFile, scidFile, l):
+def genGossip(bundles, gossipFile, scidFile, writeNodes, l):
     """
     Given bundles, we create annoucements and updates for each channel in each bundle
     Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
@@ -112,10 +112,10 @@ def genGossip(bundles, gossipFile, scidFile, l):
             bn1 = None
             bn2 = None
 
-            if channel.n1Write:
+            if channel.n1Write and writeNodes:
                 n1 = createNodeAnnouncment(node1)
                 bn1 = n1.serialize(full=True)
-            if channel.n2Write:
+            if channel.n2Write and writeNodes:
                 n2 = createNodeAnnouncment(node2)
                 bn2 = n2.serialize(full=True)
 
