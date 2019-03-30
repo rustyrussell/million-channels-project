@@ -139,7 +139,7 @@ class Channel:
             self.channelid = json["short_channel_id"]
             self.value = json["satoshis"]
         else:
-            self.channelid = str(self.node1.nodeid) + str(self.node2.nodeid)
+            self.channelid = str(self.node1.nodeid) + " " + str(self.node2.nodeid)
 
 
     def setNodeToWrite(self, node):

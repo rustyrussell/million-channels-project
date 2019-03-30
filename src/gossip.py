@@ -13,16 +13,16 @@ def gossip(config, network, gossipSequence):
     Each channel has 1 channel annoucement and 2 channel updates. Keys and scids are determined determinisically based on node id.
     """
     utility.setRandSeed(config.randSeed)
-    initGossip(config.gossipFile, config.scidSatoshisFile, len(network.channels))
+    initGossip(config.gossipFile, config.scidSatoshisFile, len(network.channels), config.gossipStore)
     t2 = time.time()
-    generateAllGossip(network, gossipSequence, config.gossipFile, config.scidSatoshisFile, config.writeNodes, config.processNum)
+    generateAllGossip(network, gossipSequence, config.gossipFile, config.scidSatoshisFile, config.writeNodes, config.processNum, config.gossipStore)
     t3 = time.time()
     print("generating/writing gossip complete", t3-t2)
 
     return network
 
 
-def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, writeNodes, processNum):
+def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, writeNodes, processNum, gossipStore):
     """
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
@@ -66,14 +66,14 @@ def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, writeNod
     pList = []
     l = Lock()
     for i in range(0, processNum):
-        p = Process(target=genGossip, args=(bundles[i], gossipFile, scidFile, writeNodes, l))
+        p = Process(target=genGossip, args=(bundles[i], gossipFile, scidFile, gossipStore, writeNodes, l))
         p.start()
         pList += [p]
     for i in range(0, processNum):
         pList[i].join()
 
 
-def genGossip(bundles, gossipFile, scidFile, writeNodes, l):
+def genGossip(bundles, gossipFile, scidFile, gossipStore, writeNodes, l):
     """
     Given bundles, we create annoucements and updates for each channel in each bundle
     Since key generation is pricey because of CBitcoinSecret objects, we save the keys so that they can be used again any other time that key is encountered in the process 
@@ -123,13 +123,13 @@ def genGossip(bundles, gossipFile, scidFile, writeNodes, l):
 
             # TODO: write every x number of channels
             if w == 100:
-                p = Process(target=writeProcess, args=(writeList, gossipFile, scidFile, l))
+                p = Process(target=writeProcess, args=(writeList, gossipFile, scidFile, gossipStore, l))
                 pList += [p]
                 p.start()
                 writeList = []
                 w = 0
             w += 1
-    p = Process(target=writeProcess, args=(writeList,gossipFile,scidFile, l))
+    p = Process(target=writeProcess, args=(writeList,gossipFile,scidFile, gossipStore, l))
     pList += [p]
     p.start()
     for p in pList:
@@ -183,7 +183,7 @@ def createChannelAnnouncement(channel, scid):
 
 #update fields
 updateType = bytearray().fromhex("0102") #258
-initialTimestamp = 1553043626     # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
+initialTimestamp = 1553043626   #int(time.time())    # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
 btimestamp = bytearray(initialTimestamp.to_bytes(4, byteorder="big"))
 cltvDelta = 10
 cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
@@ -235,14 +235,23 @@ def createChannelUpdate(channel, node, u, a):
     cFlags = ""
     if node.nodeCompPub == a.id1:
         mFlags = "00"
-        cFlags = "0"
+        cFlags = "00"
     elif node.nodeCompPub == a.id2:
         mFlags = "80"
-        cFlags = "0"
-    if channel.node1.nodeCompPub == a.id1:
-        cFlags += "0"
-    elif channel.node2.nodeCompPub == a.id1:
-        cFlags += "1"
+        cFlags = "01"  #0
+
+
+    # this will get routing working but signatures will fail on half the messages
+    # if channel.node1.nodeCompPub == node.nodeCompPub:
+    #     cFlags += "0"
+    # elif channel.node2.nodeCompPub == node.nodeCompPub:
+    #     cFlags += "1"
+
+    # if node.nodeCompPub == a.id1:
+    #     cFlags += "0"
+    # elif node.nodeCompPub == a.id2:
+    #     cFlags += "1"  #0
+
 
     u.setmFlags(bytearray().fromhex(mFlags))
     u.setcFlags(bytearray().fromhex(cFlags))
@@ -290,8 +299,7 @@ def createNodeAnnouncment(node):
 
 
 #writing functions
-
-def initGossip(gossipFile, scidSatoshiFile, channelNum):
+def initGossip(gossipFile, scidSatoshiFile, channelNum, gossipStore):
     """
     initialze gosip store by making a new one and writing gossip store version (3)
     :param filename: gossip_store filename
@@ -299,6 +307,9 @@ def initGossip(gossipFile, scidSatoshiFile, channelNum):
     if os.path.exists(gossipFile):
         os.remove(gossipFile)  # delete current generate store if it exists
         fp = open(gossipFile, "wb")
+        if gossipStore:
+            gossipVersion = bytearray().fromhex("03")
+            fp.write(gossipVersion)
         fp.close()
     if os.path.exists(scidSatoshiFile):
         os.remove(scidSatoshiFile)  # delete current generate store if it exists
@@ -308,17 +319,7 @@ def initGossip(gossipFile, scidSatoshiFile, channelNum):
         fp.close()
 
 
-
-
-
-msglenU = 130
-bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))
-msglenA = 432
-bMsglenA = bytearray(msglenA.to_bytes(2, byteorder="big"))
-msglenN = 149
-bMsglenN = bytearray(msglenN.to_bytes(2, byteorder="big"))
-
-def writeProcess(writeList, gossipFile, scidSatoshisFile, l):
+def writeProcess(writeList, gossipFile, scidSatoshisFile, gossipStore, l):
     """
     open file, write a single channel paired with 2 updates to the gossip_store.    use a lock to stop race conditions with writing to file.
     :param: ba: serialized channel annoucement
@@ -338,11 +339,11 @@ def writeProcess(writeList, gossipFile, scidSatoshisFile, l):
             scid = ca[1]
             iValue = int(ca[2])
             writeScidSatoshi(scid, iValue, scidSatoshisFile)
-            writeChannelAnnouncement(ba, gossipFile)
+            writeChannelAnnouncement(ba, bSatoshis, gossipFile, gossipStore)
         if bu1 != None:
-            writeChannelUpdate(bu1, gossipFile)
+            writeChannelUpdate(bu1, gossipFile, gossipStore)
         if bu2 != None:
-            writeChannelUpdate(bu2, gossipFile)
+            writeChannelUpdate(bu2, gossipFile, gossipStore)
         if bn1 != None:
             writeNodeAnnouncement(bn1, gossipFile)
         if bn2 != None:
@@ -352,12 +353,29 @@ def writeProcess(writeList, gossipFile, scidSatoshisFile, l):
     return
 
 
-def writeScidSatoshi(scid, iValue, scidsatoshisFile):
-    with open(scidsatoshisFile, "a") as fp:
-        fp.write(scid.hex()+" ,"+str(iValue)+"\n")
+#node fields
+msglenN = 149
+bMsglenN = bytearray(msglenN.to_bytes(2, byteorder="big"))
 
+#channel fields
+satoshis = 10000000 # 1 btc
+msglenA = 432
+bMsglenA = bytearray(msglenA.to_bytes(2, byteorder="big"))
+bSatoshis = bytearray(satoshis.to_bytes(8, byteorder="big"))
+WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")
+fulllenA = len(WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT) + len(bMsglenA) + msglenA + len(bSatoshis)  # remember, we don't have checksum and we don't count gossipVersion
+bMsglenAFull = bytearray(fulllenA.to_bytes(4, byteorder="big"))
+halfWriteA = bMsglenAFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA
 
-def writeChannelAnnouncement(ba,fp):
+#update fields
+msglenU = 130
+bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))
+WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
+fulllenU = len(WIRE_GOSSIP_STORE_CHANNEL_UPDATE) + len(bMsglenU) + msglenU  # remember, we don't have checksum and we don't count gossipVersion
+bMsglenUFull = bytearray(fulllenU.to_bytes(4, byteorder="big"))
+halfWriteU = bMsglenUFull + WIRE_GOSSIP_STORE_CHANNEL_UPDATE + bMsglenU
+
+def writeChannelAnnouncement(ba, bValue, fp, fullGossipStoreFlag):
     """
     write channel announcement
     :param a: announcement serialized
@@ -365,10 +383,16 @@ def writeChannelAnnouncement(ba,fp):
     :return: serialized gossip msg
     """
     with open(fp, "ab") as fp:
-        fp.write(bMsglenA)
+        if fullGossipStoreFlag:
+            fp.write(halfWriteA)
+        else:
+            fp.write(bMsglenA)
         fp.write(ba)
+        if fullGossipStoreFlag:
+            fp.write(bValue)
 
-def writeChannelUpdate(bu, fp):
+
+def writeChannelUpdate(u, fp, fullGossipStoreFlag):
     """
     write channel update
     :param u: update serialized
@@ -376,8 +400,17 @@ def writeChannelUpdate(bu, fp):
     :return: serialized gossip msg
     """
     with open(fp, "ab") as fp:
-        fp.write(bMsglenU)
-        fp.write(bu)
+        if fullGossipStoreFlag:
+            fp.write(halfWriteU)
+        else:
+            fp.write(bMsglenU)
+        fp.write(u)
+
+
+
+def writeScidSatoshi(scid, iValue, scidsatoshisFile):
+    with open(scidsatoshisFile, "a") as fp:
+        fp.write(scid.hex()+" ,"+str(iValue)+"\n")
 
 
 WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")

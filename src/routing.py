@@ -11,10 +11,15 @@ def main():
     argv = sys.argv    #TODO: add argparse 
     if argv[1] == "route": #input a source and destination
         #network, gs = utility.loadNetwork(nodeSaveFile, channelSaveFile)
-        si = int(argv[2])  #source
-        di = int(argv[3])  #destination
-        sPub = getPubKey(si)
-        dPub = getPubKey(di)
+        if argv[2] == "i":
+            si = int(argv[3])  #source
+            di = int(argv[4])  #destination
+            sPub = getPubKey(si)
+            dPub = getPubKey(di)
+        else:
+            sPub = argv[2]  # source
+            dPub = argv[3]  # destination
+
         routeL = getRouteLightning(sPub, dPub)
         printLightningRoute(routeL, sPub)
         #routesI = getRouteigraph(si, di, network.igraph)

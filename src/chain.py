@@ -11,6 +11,9 @@ from multiprocessing import Pool
 
 
 def buildChain(config, network):
+    for c in network.channels:
+        c.scid.tx = 0
+        c.scid.height = 0
     lstChanBlocks = blocksCoinbaseSpends(config, network.channels)
     blocksToMine = getNumBlocksToMine(lstChanBlocks)
     objRpcB, objPrivMiner, strAddrMiner, strBlockHashes = init(config, blocksToMine)
@@ -29,6 +32,7 @@ def buildChain(config, network):
     setRealScids(config, objRpcB, txidToChan, fundingHashes)
     killBitcoind()
     return network
+
 
 def blocksCoinbaseSpends(config, channels):
     """
@@ -122,7 +126,7 @@ def setRealScids(config, objRpcB, txidToChan, blockHashes):
             scidtxi = i
             chan = txidToChan[txid]
             chan.scid.tx = scidtxi
-            chan.scid.height = int(height)
+            chan.scid.height = height
 
 #onchain tx creation functions
 
@@ -338,6 +342,8 @@ def spendToFunding(chan, txid, txin, txoi, objPrivMiner, bPubN1, bPubN2):
                                        )
     segwitSolver = P2wpkhV0Solver(privk=objPrivMiner)
     fundingTx = unsignedP2wsh.spend([txin], [segwitSolver])
+
+    xmulti = p2wsh_multisig.hexlify()
     #print("chan:", chan.channelid, "txid", fundingTx.txid, "multisig:", p2wsh_multisig.hexlify())   #for debugging
     return fundingTx
 
