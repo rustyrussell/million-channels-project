@@ -14,6 +14,7 @@ def buildChain(config, network):
     for c in network.channels:
         c.scid.tx = 0
         c.scid.height = 0
+        c.output = 0
     lstChanBlocks = blocksCoinbaseSpends(config, network.channels)
     blocksToMine = getNumBlocksToMine(lstChanBlocks)
     objRpcB, objPrivMiner, strAddrMiner, strBlockHashes = init(config, blocksToMine)
@@ -21,15 +22,12 @@ def buildChain(config, network):
     chanIdToChan = {}
     for chan in network.channels:
         chanIdToChan[chan.channelid] = chan
-    lstSpendBlocks, lstChansOutBlocks = parallelCbSpends(config, lstChanBlocks, cbTxs, objPrivMiner)
+    dictIdToPub = crypto.parallelBtcpyPubKeys(config.processNum, network.getNodes())
+    lstSpendBlocks, dictTxidToChans = parallelCbSpends(config, lstChanBlocks, cbTxs, dictIdToPub, objPrivMiner)
     #spend coinbase transactions that are in spendBlocks
     xlstSpendBlocks = txBlocksToHex(lstSpendBlocks)
     coinbaseHashes, objRpcB = sendRawTxs(config, objRpcB, xlstSpendBlocks, strAddrMiner)
-    #fund contracts
-    dictIdToPub = crypto.parallelBtcpyPubKeys(config.processNum, network.getNodes())
-    xlstFundingBlocks, txidToChan = parallelFundingTxs(config, lstSpendBlocks, lstChansOutBlocks, dictIdToPub, chanIdToChan, objPrivMiner)
-    fundingHashes, objRpcB = sendRawTxs(config, objRpcB, xlstFundingBlocks, strAddrMiner)
-    setRealScids(config, objRpcB, txidToChan, fundingHashes)
+    objRpcB = setRealScids(config, objRpcB, dictTxidToChans, chanIdToChan, coinbaseHashes)
     killBitcoind()
     return network
 
@@ -108,7 +106,7 @@ def blocksFundingTxs(maxTxPerBlock, lstFundingTxs):
     return lstFundingBlocks
 
 
-def setRealScids(config, objRpcB, txidToChan, blockHashes):
+def setRealScids(config, objRpcB, txidToChan, chanidToChan, blockHashes):
     """
     the transactions that are send via sendrawtransaction are not added to a block in the same order as they are sent, 
     This function queries bitcoinCli for the block and gets the correct scid
@@ -124,13 +122,19 @@ def setRealScids(config, objRpcB, txidToChan, blockHashes):
         for i in range(1, len(txids)):
             txid = txids[i]
             scidtxi = i
-            chan = txidToChan[txid]
-            chan.scid.tx = scidtxi
-            chan.scid.height = height
+            lstChanid = txidToChan[txid]
+            for j in range(0, len(lstChanid)):
+                chanid = lstChanid[j]
+                chan = chanidToChan[chanid]
+                chan.scid.tx = scidtxi
+                chan.scid.height = height
+                chan.scid.output = j
+
+    return objRpcB
 
 #onchain tx creation functions
 
-def parallelCbSpends(config, lstChanBlocks, lstCbTxs, objPrivMiner):
+def parallelCbSpends(config, lstChanBlocks, lstCbTxs, dictIdToPub, objPrivMiner):
     """
     Create coinbase spends with config.threadNum processes
     :param config: config
@@ -155,20 +159,21 @@ def parallelCbSpends(config, lstChanBlocks, lstCbTxs, objPrivMiner):
 
     for b in range(0, len(bundles)):
         bundle = bundles[b]
-        bundles[b] = (config.fee, config.coinbaseReward, objPrivMiner, len(lstChanBlocks), bundle)
+        bundles[b] = (config.fee, config.coinbaseReward, objPrivMiner, dictIdToPub, len(lstChanBlocks), bundle)
 
     p = Pool(processes=processNum)
     lstlstSpendBlocks = p.map(onChainCbTxs, bundles)
     p.close()
     lstSpendBlocks = [[] for i in range(0, len(lstChanBlocks))]
-    lstChansOutBlocks = [[] for i in range(0, len(lstChanBlocks))]
+    dictTxidChans = {}
     for lst in lstlstSpendBlocks:
         if lst != []:
             for i in range(0, len(lstChanBlocks)):
                 lstSpendBlocks[i] += lst[0][i]
-                lstChansOutBlocks[i] += lst[1][i]  #TODO change use chanIdToChan to set the correct chan objects rather than copies
+            for tup in lst[1]:
+                dictTxidChans[tup[0]] = tup[1]
 
-    return lstSpendBlocks, lstChansOutBlocks
+    return lstSpendBlocks, dictTxidChans
 
 
 
@@ -181,27 +186,27 @@ def onChainCbTxs(args):
     fee = args[0]
     reward = args[1]
     objPrivMiner = args[2]
-    iBlocks = args[3]
-    bundle = args[4]
+    dictIdToPub = args[3]
+    iBlocks = args[4]
+    bundle = args[5]
     cbSolver = P2pkhSolver(objPrivMiner)
     lstSpendBlocks = [[] for i in range(0, iBlocks)]
-    lstChansOutBlocks = [[] for i in range(0, iBlocks)]
-    bPubMiner = objPrivMiner.pub(compressed=True)
+    lstTupTxidChans = []
 
     for i in range(0, len(bundle)):
         outputs = bundle[i][0]
         xTx = bundle[i][1]
         bi = bundle[i][2]
         objTx = SegWitTransaction.unhexlify(xTx)
-        cbSpend = spendCb(fee, reward, objTx, outputs, cbSolver, bPubMiner)
+        cbSpend, tupTxidChans = spendCb(fee, reward, objTx, outputs, cbSolver, dictIdToPub)
+        lstTupTxidChans += [tupTxidChans]
         lstSpendBlocks[bi] += [cbSpend]
-        lstChansOutBlocks[bi] += [outputs]
 
-    return lstSpendBlocks, lstChansOutBlocks
-
+    return lstSpendBlocks, lstTupTxidChans
 
 
-def spendCb(fee, reward, objTx, outputs, cbSolver, bPubMiner):
+
+def spendCb(fee, reward, objTx, outputs, cbSolver, dictIdToPub):
     """
     create a single coinbase spend
     :param fee: fee
@@ -214,18 +219,25 @@ def spendCb(fee, reward, objTx, outputs, cbSolver, bPubMiner):
     """
     outs = []
     totVal = 0
-    script = P2wpkhV0Script(bPubMiner)
+    chanIds = []
     for o in outputs:
         v = int(o.value)
-        v += fee
+        bPubN1 = dictIdToPub[str(o.node1.nodeid)]
+        bPubN2 = dictIdToPub[str(o.node2.nodeid)]
+        if bPubN1.compressed < bPubN2.compressed:  # lexicographical ordering
+            multisig_script = MultisigScript(2, bPubN1, bPubN2, 2)
+        else:
+            multisig_script = MultisigScript(2, bPubN2, bPubN1, 2)
+        p2wsh_multisig = P2wshV0Script(multisig_script)
         totVal += v
         outs += [TxOut(value=v,
                        n=0,
-                       script_pubkey=script)]
+                       script_pubkey=p2wsh_multisig)]
+        chanIds += [o.channelid]
 
     change = reward - totVal - fee
     outsWithChange = outs + [TxOut(value=change, n=0, script_pubkey=objTx.outs[0].script_pubkey)]
-    unsignedSegwit = MutableTransaction(version=1,
+    unsignedCb = MutableTransaction(version=1,
                                         ins=[TxIn(txid=objTx.txid,
                                                   txout=0,
                                                   script_sig=ScriptSig.empty(),
@@ -233,8 +245,8 @@ def spendCb(fee, reward, objTx, outputs, cbSolver, bPubMiner):
                                         outs=outsWithChange,
                                         locktime=Locktime(0)
                                         )
-    segwitTx = unsignedSegwit.spend([objTx.outs[0]], [cbSolver])
-    return segwitTx
+    cbTx = unsignedCb.spend([objTx.outs[0]], [cbSolver])
+    return cbTx, (cbTx.txid, chanIds)
 
 
 def parallelFundingTxs(config, lstSpendBlocks, lstChanOutBlocks, dictIdToPub, chanIdToChan, objPrivMiner):
