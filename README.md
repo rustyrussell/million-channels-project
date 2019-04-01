@@ -24,7 +24,7 @@ This network will be used for testing routing algorithms and channel syncing.
 
        `cd devtools`
        
-       `./create-gossipstore --verbose --scidfile /path/to/scidSatoshis.csv -i /path/to/gossip -o ~/path/to/.lightning-datadir`
+       `./create-gossipstore --verbose 100000 -i /path/to/gossip -o ~/path/to/.lightning-datadir`
 
 4. Change regtest halving constant (consensus.nSubsidyHalvingInterval) in bitcoin/src/chainparams.cpp from 150 to 21000000. Then, ./configure and make bitcoin.
 
