@@ -57,7 +57,6 @@ def blocksCoinbaseSpends(config, channels):
 
         if len(coinbaseTxs) == txPerBlock:
             blocks += [coinbaseTxs]
-            currOutputs = []
             coinbaseTxs = []
 
     if currOutputs != []:
