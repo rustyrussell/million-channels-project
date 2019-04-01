@@ -313,9 +313,9 @@ def initGossip(gossipFile, scidSatoshiFile, channelNum, gossipStore):
         fp.close()
     if os.path.exists(scidSatoshiFile):
         os.remove(scidSatoshiFile)  # delete current generate store if it exists
-        with open(scidSatoshiFile, "w", newline="") as fp:
-            fp.write(str(channelNum) + "\n")
-            fp.write("scid,satoshis\n")
+    with open(scidSatoshiFile, "a") as fp:
+        fp.write(str(channelNum) + "\n")
+        fp.write("scid,satoshis\n")
 
 
 def writeProcess(writeList, gossipFile, scidSatoshisFile, gossipStore, l):
