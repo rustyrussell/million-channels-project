@@ -41,7 +41,7 @@ def blocksCoinbaseSpends(config, channels):
     """
     coinbaseTxs = []
     currOutputs = []
-    currOutputsValue = config.fee
+    currOutputsValue = 0
     txPerBlock = config.maxTxPerBlock
     blocks = []
     for i in range(0, len(channels)):
@@ -49,11 +49,11 @@ def blocksCoinbaseSpends(config, channels):
         value = chan.value
         if (currOutputsValue + value + config.fee) < config.coinbaseReward and len(currOutputs) < config.maxOutputsPerTx:
             currOutputs += [chan]
-            currOutputsValue += value + config.fee
+            currOutputsValue += value
         else:
             coinbaseTxs += [currOutputs]
             currOutputs = [chan]
-            currOutputsValue = chan.value + config.fee
+            currOutputsValue = chan.value
 
         if len(coinbaseTxs) == txPerBlock:
             blocks += [coinbaseTxs]
@@ -379,11 +379,11 @@ def init(config, blocksToMine):
     xPubMiner = str(pubMiner)
     strAddrMiner = str(pubMiner.to_address(mainnet=False))
     objRpcB = addPrivToBitcoind(config, objRpcB, config.iCoinbasePriv, xPubMiner, strAddrMiner)
-    hundredBlockRounds = blocksToMine // 1000
-    remainder = blocksToMine % 1000
+    hundredBlockRounds = blocksToMine // 100
+    remainder = blocksToMine % 100
     strBlockHashes = []
     for i in range(0, hundredBlockRounds):
-        hashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", 1000, strAddrMiner)
+        hashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", 100, strAddrMiner)
         strBlockHashes += hashes
     if remainder != 0:
         hashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", remainder, strAddrMiner)

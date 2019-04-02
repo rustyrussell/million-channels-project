@@ -4,8 +4,6 @@ from common import utility
 from analysis import fundingReg
 
 #classes
-
-
 class Scid():
     def __init__(self, height, tx, output=0):
         self.height = height

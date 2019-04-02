@@ -183,7 +183,7 @@ def createChannelAnnouncement(channel, scid):
 
 #update fields
 updateType = bytearray().fromhex("0102") #258
-initialTimestamp = 1553043626   #int(time.time())    # timestamp is from time.time(). We increment this number by 1 for every new channel pairs of updates
+initialTimestamp = int(time.time())    
 btimestamp = bytearray(initialTimestamp.to_bytes(4, byteorder="big"))
 cltvDelta = 10
 cltvDelta = bytearray(cltvDelta.to_bytes(2, byteorder="big"))
@@ -212,9 +212,9 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     u.setHTLCMSat(htlcMSat)
     u.setFeeBaseMSat(feeBaseMSat)
     u.setFeePropMill(feePropMill)
-    #value = channel.value
-    #bValue = bytearray(value.to_bytes(8, byteorder="big"))
-    #u.setHTLCMaxMSat(bValue) #TODO: once final capacity generation is inplace, uncomment this line.
+    value = int(channel.value)
+    bValue = bytearray(value.to_bytes(8, byteorder="big"))
+    u.setHTLCMaxMSat(bValue)
 
     u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
@@ -234,24 +234,11 @@ def createChannelUpdate(channel, node, u, a):
     mFlags = ""
     cFlags = ""
     if node.nodeCompPub == a.id1:
-        mFlags = "00"
+        mFlags = "01"
         cFlags = "00"
     elif node.nodeCompPub == a.id2:
-        mFlags = "80"
-        cFlags = "01"  #0
-
-
-    # this will get routing working but signatures will fail on half the messages
-    # if channel.node1.nodeCompPub == node.nodeCompPub:
-    #     cFlags += "0"
-    # elif channel.node2.nodeCompPub == node.nodeCompPub:
-    #     cFlags += "1"
-
-    # if node.nodeCompPub == a.id1:
-    #     cFlags += "0"
-    # elif node.nodeCompPub == a.id2:
-    #     cFlags += "1"  #0
-
+        mFlags = "81"
+        cFlags = "01"
 
     u.setmFlags(bytearray().fromhex(mFlags))
     u.setcFlags(bytearray().fromhex(cFlags))
@@ -288,6 +275,28 @@ def createNodeAnnouncment(node):
     zero = "".join(["0" for i in range(0, zeros)])
     alias = zero + alias
     n.setAlias(bytearray(alias.encode("utf-8")))
+    if node.addrType is not None:
+        if node.addrType == "ipv4":
+            bType = bytearray([1])
+        elif node.addrType == "ipv6":
+            bType = bytearray([2])
+        elif node.addrType == "torv2":
+            bType = bytearray([3])
+        elif node.addrType == "torv3":
+            bType = bytearray([4])
+        else:
+            raise ValueError("addr type is not on of the following: ipv4, ipv6, torv2, or torv3, or None")
+        try:
+            bAddresses = bType + node.addrList[0]
+        except:
+            raise ValueError
+        iAddrLen = len(bAddresses)
+        bAddrLen = iAddrLen.to_bytes(2, "big")
+    else:
+        iAddrLen = 0
+        bAddrLen = iAddrLen.to_bytes(2, "big")
+        bAddresses = bytearray()
+
     n.setAddrLen(bAddrLen)
     n.setAddresses(bAddresses)
 
@@ -367,7 +376,7 @@ bMsglenAFull = bytearray(fulllenA.to_bytes(4, byteorder="big"))
 halfWriteA = bMsglenAFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA
 
 #update fields
-msglenU = 130
+msglenU = 138
 bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))
 WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
 fulllenU = len(WIRE_GOSSIP_STORE_CHANNEL_UPDATE) + len(bMsglenU) + msglenU  # remember, we don't have checksum and we don't count gossipVersion
@@ -421,7 +430,8 @@ def writeNodeAnnouncement(bn, fp):
     :return: serialized gossip msg
     """
     with open(fp, "ab") as fp:
-        fp.write(bMsglenN)
+        nlen = len(bn)
+        fp.write(bytearray(nlen.to_bytes(2, "big")))
         fp.write(bn)
 
 

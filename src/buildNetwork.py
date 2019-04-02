@@ -11,6 +11,7 @@ from analysis import powerLawReg, fundingReg
 import chain
 from numpy.random import shuffle
 import bisect
+from math import floor
 
 
 def buildNetwork(config):
@@ -334,7 +335,6 @@ def capacityDistribution(config, network, targetNetwork):
     pass
 
 
-
 def buildNodeDetails(config, targetNetwork, network=None):
     """
     :param targetNetwork:
@@ -362,76 +362,135 @@ def buildNodeDetails(config, targetNetwork, network=None):
     torv2 = 0
     torv3 = 0
     noAddr = 0
-    noNodeAnnounce = 0
-    naLen = len(matches)
+    noNodeAnnounce = len(targetNetwork.getNodes()) - len(matches)
     for na in matches:
         try:
             addrs = na[0]["addresses"]
             if len(addrs) == 0:
                 noAddr += 1
-            else:
-                t = addrs[0]["type"]
-                if t == "ipv4":
-                    ipv4 += 1
-                elif t == "ipv6":
-                    ipv6 += 1
-                elif t == "torv2":
-                    torv2 += 1
-                elif t == "torv3":
-                    torv3 += 1
+            for addr in addrs:
+                    t = addr["type"]
+                    if t == "ipv4":
+                        ipv4 += 1
+                    elif t == "ipv6":
+                        ipv6 += 1
+                    elif t == "torv2":
+                        torv2 += 1
+                    elif t == "torv3":
+                        torv3 += 1
         except KeyError:
             noNodeAnnounce += 1
 
+    naLen = ipv4 + ipv6 + torv3 + torv2 + noAddr + noNodeAnnounce
     nodesCopy = network.getNodes().copy()
     nodeNum = len(nodesCopy)
     shuffle(nodesCopy)
     shuffledNodes = nodesCopy
+    nextIPv4 = [127, 0, 0, 1, 38, 7]
+    nextIPv6 = [254, 72, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 38, 7]    # fe48:: is private addr space for ipv6
 
-    ipv4NodeNum = round((ipv4/naLen)*nodeNum)
-    ipv6NodeNum = round((ipv6/naLen)*nodeNum)
-    torv2NodeNum = round((torv2/naLen)*nodeNum)
-    torv3NodeNum = round((torv3/naLen)*nodeNum)
-    noAddr = round((noAddr/naLen)*nodeNum)
+    if config.addrTypes == "all":
+        ipv4NodeNum = floor((ipv4/naLen)*nodeNum)
+        ipv6NodeNum = floor((ipv6/naLen)*nodeNum)
+        torv2NodeNum = floor((torv2/naLen)*nodeNum)
+        torv3NodeNum = floor((torv3/naLen)*nodeNum)
+        noAddr = floor((noAddr/naLen)*nodeNum)
 
-    i = 0
-    for j in range (i, ipv4NodeNum):
-        node = shuffledNodes[j]
-        node.setAddrType("ipv4")
-        node.setAnnounce(True)
-    i += ipv4NodeNum
-    for j in range (i, ipv6NodeNum):
-        node = shuffledNodes[j]
-        node.setAddrType("ipv6")
-        node.setAnnounce(True)
-    i += ipv6NodeNum
-    for j in range (i, torv2NodeNum):
-        node = shuffledNodes[j]
-        node.setAddrType("torv2")
-        node.setAnnounce(True)
-    i += torv2NodeNum
-    for j in range (i, torv3NodeNum):
-        node = shuffledNodes[j]
-        node.setAddrType("torv3")
-        node.setAnnounce(True)
-    i += torv3NodeNum
-    for j in range (i, noAddr):
-        node = shuffledNodes[j]
-        node.setAddrType(None)
-        node.setAnnounce(True)
-    i += noAddr
-    for j in range (i, len(shuffledNodes)):
-        node = shuffledNodes[j]
-        node.setAddrType(None)
-        node.setAnnounce(False)
+        i = 0
+        for j in range (i, ipv4NodeNum):
+            currIPV4 = nextIPv4
+            node = shuffledNodes[j]
+            node.setAddrType("ipv4")
+            node.setAnnounce(True)
+            node.addrList += [bytearray(currIPV4)]
+            nextIPv4 = getNextIPv4(currIPV4)
+        i += ipv4NodeNum
+        for j in range (i, i+ipv6NodeNum):
+            currIPv6 = nextIPv6
+            node = shuffledNodes[j]
+            node.setAddrType("ipv6")
+            node.setAnnounce(True)
+            node.addrList += [bytearray(currIPv6)]
+            nextIPv6 = getNextIPv6(currIPv6)
+        i += ipv6NodeNum
+        for j in range (i, i+torv2NodeNum):
+            node = shuffledNodes[j]
+            node.setAddrType("torv2")
+            node.setAnnounce(True)
+            node.addrList += [bytearray(getRandomTor(v=2))]
+        i += torv2NodeNum
+        for j in range (i, i+torv3NodeNum):
+            node = shuffledNodes[j]
+            node.setAddrType("torv3")
+            node.setAnnounce(True)
+            node.addrList += [bytearray(getRandomTor(v=3))]
+        i += torv3NodeNum
+        for j in range (i, i+noAddr):
+            node = shuffledNodes[j]
+            node.setAddrType(None)
+            node.setAnnounce(True)
+        i += noAddr
+        for j in range (i, len(shuffledNodes)):
+            node = shuffledNodes[j]
+            node.setAddrType(None)
+            node.setAnnounce(False)
+    elif config.addrTypes == "ipv4":
+        for i in range (0, len(network.getNodes())):
+            currIPv4 = nextIPv4
+            node = network.getNodes()[i]
+            node.setAddrType("ipv4")
+            node.setAnnounce(True)
+            node.addrList += [bytearray(currIPv4)]
+            nextIPv4 = getNextIPv4(currIPv4)
 
 
     setChannelsToAnnounceNodes(shuffledNodes)
+
+
+def getNextIPv4(ipv4):
+    """
+    :param ipv4: 6 elements in a list: first 4 are ip and last 2 are port
+    :return:
+    """
+    for i in range(3, 0, -1):
+        if ipv4[i] == 255:
+            ipv4[i] = 0
+        else:
+            ipv4[i] += 1
+            break
+
+    return ipv4
+
+def getNextIPv6(ipv6):
+    """
+    :param ipv6: 18 elements, first 16 are ip, last 2 are port
+    :return:
+    """
+    for i in range(15, 1, -1):
+        if ipv6[i] == 255:
+            ipv6[i] = 0
+        else:
+            ipv6[i] += 1
+            break
+    return ipv6
+
+
+
+def getRandomTor(v):
+    port = [38, 7]  # 9735 in decimal
+    if v == 2:
+        addr = [random.randint(0, 255) for i in range(0, 10)]
+        return addr + port
+    elif v == 3:
+        addr = [random.randint(0, 255) for i in range(0, 35)]
+        return addr + port
 
 
 def setChannelsToAnnounceNodes(nodes):
     for node in nodes:
         if node.announce:
             node.channels[0].setNodeToWrite(node)
+
 
 
 def setAllChannelsDefaultValue(network, value):
