@@ -7,8 +7,7 @@ Builds the network with a backtracking algorithm and network measures defined in
 import random
 from common import networkClasses
 from common import utility
-from analysis import powerLawReg, fundingReg
-import chain
+from analysis import powerLawReg
 from numpy.random import shuffle
 import bisect
 from math import floor
@@ -29,7 +28,7 @@ def buildNetwork(config, targetNetwork):
     gossipSequence = buildEdges(network)
     # create capacity of channels
     capacityDistribution(config, network, targetNetwork)
-    scids(config, network)
+    tempScids(config, network)
     # create details of nodes
     buildNodeDetails(config, targetNetwork, network)
     utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
@@ -45,16 +44,14 @@ def initTargetNetwork(config):
     targetNetwork.analysis.analyze()
     return targetNetwork
 
-def scids(config, network):
+def tempScids(config, network):
     """
     Creates scids by calculating the starting height after coinbase blocks and spending coinbase blocks
     :param config: config
     :param network: network
     :return:
     """
-    chanBlocks = chain.blocksCoinbaseSpends(config, network.channels)
-    coinbaseBlocksNum = chain.getNumBlocksToMine(chanBlocks)         # blocks to mine to fund the txs in the blockchain
-    scidHeight = coinbaseBlocksNum + len(chanBlocks) + config.confirmations  # blocks to create coinbase + blocks to spend coinbases + 6 confirmations
+    scidHeight = 1
     scidTx = 1
 
     for i in range(0, len(network.channels)):
@@ -226,9 +223,11 @@ def nodeDistribution(config, network):
     nodes = []
     nodeidCounter = 0
     totalChannels = 0
-    x = powerLawReg.randToPowerLaw(params)
     maxChannelsPerNode = config.maxChannels
+    x = 0
+    x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
     while x > maxChannelsPerNode or x + totalChannels < channelsToCreate:
+        x = round(x, 0)
         if x == 0 or x > maxChannelsPerNode:
             pass
         else:
@@ -236,7 +235,8 @@ def nodeDistribution(config, network):
             n = networkClasses.Node(nodeidCounter, maxChannels=x)
             nodes += [n]
             nodeidCounter += 1
-        x = powerLawReg.randToPowerLaw(params)
+        x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
+
 
     return nodes
 
@@ -249,16 +249,16 @@ def capacityDistribution(config, network, targetNetwork):
     params = targetNetwork.analysis.nodeCapacityInNetPowLawParams[0]
     interval = targetNetwork.analysis.nodeCapacityInNetPowLawParams[2]
     scaledMaxFunding = config.maxFunding/interval
-
+    x = powerLawReg.randToPowerLaw(params, bound=(0, scaledMaxFunding))
     while len(capList) < nodeNum:
-        x = powerLawReg.randToPowerLaw(params)
         #x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain. We do this because coinbase outputs -> segwit outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
-        if x < 1:
-            x = 1
-        while x > scaledMaxFunding or (x > (config.coinbaseReward-(2*config.fee))/interval):
-            x = powerLawReg.randToPowerLaw(params)
-        xSatoshis = round(x * interval)
-        bisect.insort_left(capList, xSatoshis)
+        if x > scaledMaxFunding or (x > (config.coinbaseReward-((config.fee))/interval)) or x == 0:
+            continue
+        else:
+            satoshis = x * interval   #back to full satoshis
+            bisect.insort_left(capList, satoshis)
+        x = powerLawReg.randToPowerLaw(params, bound=(0, scaledMaxFunding))
+
 
     #TODO do swapping in list to make it more random but for the most part sorted from greatest to least
 
@@ -268,7 +268,7 @@ def capacityDistribution(config, network, targetNetwork):
 
     #assign each node in reverse order a capacity in the order of the semi sorted list
     for i in range (nodeNum-1, -1, -1):
-        currCap = capList[i]
+        currCap = utility.scaleSatoshis(capList[i], config.scalingUnits)
         currNode = nodesByChans[i]
         currNode.setUnallocated(currCap)
         currNode.setAllocation(currCap)

@@ -186,6 +186,13 @@ def calcNetworkValue(network):
 
 
 
+def scaleSatoshis(satoshis, scalingUnits):
+    satoshis = .00000001       # a satoshi is .00000001 of a btc
+    div = satoshis / scalingUnits
+    scaledSatoshis = satoshis // div  # we have to scale it so that regtest has enough bitcoin to fund because of low halving interval
+    return scaledSatoshis
+
+
 def setMaxChannels(nodes):
     for n in nodes:
         n.setMaxChannels(n.channelCount)

@@ -26,7 +26,7 @@ def generateAllGossip(network, rawGossipSequence, gossipFile, scidFile, writeNod
     """
     generates and writes all gossip. 
     First use the gossipSequence generated in buildNetwork.py and stored in channelStoreFile to seperate channels into lists of channels 
-    Second, based on thread count, create lists of channel allococaters called tindex which helps with load balancing. A sequence of channels is called a bundle. 
+    Second, based on thread count, create lists of channel allocators called tindex which helps with load balancing. A sequence of channels is called a bundle.
     Bundles will be assigned to each process.
     Last, we make a group of processes running genGossip
     """

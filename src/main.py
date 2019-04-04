@@ -5,9 +5,8 @@ import argparse
 import importlib.util
 from bitcoin import SelectParams
 from common import graph, utility
-from os import path, mkdir, chdir
+from os import path, mkdir
 import time
-
 
 
 def main():

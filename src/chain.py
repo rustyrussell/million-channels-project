@@ -1,10 +1,10 @@
 from btcpy.structs import crypto as pycrypto
-from btcpy.structs.transaction import SegWitTransaction, Sequence, TxOut, Locktime, TxIn, MutableTransaction, P2wpkhV0Script
-from btcpy.structs.sig import P2pkhSolver, ScriptSig, P2wpkhV0Solver, MultisigScript, P2wshV0Script
+from btcpy.structs.transaction import SegWitTransaction, Sequence, TxOut, Locktime, TxIn, MutableTransaction
+from btcpy.structs.sig import P2pkhSolver, ScriptSig, MultisigScript, P2wshV0Script
 from bitcoin.rpc import Proxy, InWarmupError
 import os
 import shutil
-from common import wif, crypto
+from common import wif, crypto, utility
 import subprocess
 import time
 from multiprocessing import Pool
@@ -17,13 +17,13 @@ def buildChain(config, network):
         c.output = 0
     lstChanBlocks = blocksCoinbaseSpends(config, network.channels)
     blocksToMine = getNumBlocksToMine(lstChanBlocks)
-    objRpcB, objPrivMiner, strAddrMiner, strBlockHashes = init(config, blocksToMine)
-    objRpcB, cbTxs = getCoinbaseTxids(config, objRpcB)
+    objRpcB, objPrivMiner, strAddrMiner, hashesCb = init(config, blocksToMine)
+    objRpcB, lstCbTxs = getCoinbaseTxids(config, objRpcB, hashesCb)
     chanIdToChan = {}
     for chan in network.channels:
         chanIdToChan[chan.channelid] = chan
     dictIdToPub = crypto.parallelBtcpyPubKeys(config.processNum, network.getNodes())
-    lstSpendBlocks, dictTxidToChans = parallelCbSpends(config, lstChanBlocks, cbTxs, dictIdToPub, objPrivMiner)
+    lstSpendBlocks, dictTxidToChans = parallelCbSpends(config, lstChanBlocks, lstCbTxs, dictIdToPub, objPrivMiner)
     #spend coinbase transactions that are in spendBlocks
     xlstSpendBlocks = txBlocksToHex(lstSpendBlocks)
     coinbaseHashes, objRpcB = sendRawTxs(config, objRpcB, xlstSpendBlocks, strAddrMiner)
@@ -44,14 +44,22 @@ def blocksCoinbaseSpends(config, channels):
     currOutputsValue = 0
     txPerBlock = config.maxTxPerBlock
     blocks = []
-    for i in range(0, len(channels)):
-        chan = channels[i]
+    coinbaseReward = config.coinbaseReward    #50 bitcoins
+    copyChannels = channels.copy()
+    copyChannels.sort(key=utility.sortByChanValue, reverse=True) #sorting in reverse because larger coinbase reward can comes first
+    icbs = 1
+    for i in range(0, len(copyChannels)):
+        chan = copyChannels[i]
         value = chan.value
-        if (currOutputsValue + value + config.fee) < config.coinbaseReward and len(currOutputs) < config.maxOutputsPerTx:
+        if (currOutputsValue + value + config.fee) < coinbaseReward and len(currOutputs) < config.maxOutputsPerTx:
             currOutputs += [chan]
             currOutputsValue += value
         else:
-            coinbaseTxs += [currOutputs]
+            coinbaseTxs += [(currOutputs, coinbaseReward)]
+            icbs += 1
+            if icbs == config.halvingInterval:
+                coinbaseReward = int(coinbaseReward / 2)
+                icbs = 0
             currOutputs = [chan]
             currOutputsValue = chan.value
 
@@ -60,25 +68,11 @@ def blocksCoinbaseSpends(config, channels):
             coinbaseTxs = []
 
     if currOutputs != []:
-        coinbaseTxs += [currOutputs]
+        coinbaseTxs += [(currOutputs, coinbaseReward)]
     if coinbaseTxs != []:
         blocks += [coinbaseTxs]
 
     return blocks
-
-
-def getNumBlocksToMine(chanBlocks):
-    """
-    get number blocks to mine to fund the channels including extra 100 to spend the blocks
-    :param chanBlocks: the outputs of coinbase txs put in blocks
-    :return: int
-    """
-    cbs = 0
-    for block in chanBlocks:
-        cbs += len(block) + 100
-    blocksToMine = cbs
-    return blocksToMine
-
 
 def blocksFundingTxs(maxTxPerBlock, lstFundingTxs):
     """
@@ -105,32 +99,6 @@ def blocksFundingTxs(maxTxPerBlock, lstFundingTxs):
     return lstFundingBlocks
 
 
-def setRealScids(config, objRpcB, txidToChan, chanidToChan, blockHashes):
-    """
-    the transactions that are send via sendrawtransaction are not added to a block in the same order as they are sent, 
-    This function queries bitcoinCli for the block and gets the correct scid
-    :param config: config
-    :param objRpcB: proxy obj
-    :param txidToChan: dict mapping txid to chans
-    :param blockHashes: block hashes
-    """
-    for hash in blockHashes:
-        r, objRpcB = bitcoinCli(config, objRpcB, "getblock", hash)
-        txids = r["tx"]
-        height = r["height"]
-        for i in range(1, len(txids)):
-            txid = txids[i]
-            scidtxi = i
-            lstChanid = txidToChan[txid]
-            for j in range(0, len(lstChanid)):
-                chanid = lstChanid[j]
-                chan = chanidToChan[chanid]
-                chan.scid.tx = scidtxi
-                chan.scid.height = height
-                chan.scid.output = j
-
-    return objRpcB
-
 #onchain tx creation functions
 
 def parallelCbSpends(config, lstChanBlocks, lstCbTxs, dictIdToPub, objPrivMiner):
@@ -150,6 +118,9 @@ def parallelCbSpends(config, lstChanBlocks, lstCbTxs, dictIdToPub, objPrivMiner)
         block = lstChanBlocks[i]
         for j in range(0, len(block)):
             bundles[p] += [(lstChanBlocks[i][j], lstCbTxs[txidi], i)]
+            if  SegWitTransaction.unhexlify(lstCbTxs[txidi]).outs[0].value != lstChanBlocks[i][j][1]:
+                print("not eq")
+            print(txidi, ":", SegWitTransaction.unhexlify(lstCbTxs[txidi]).outs[0].value, lstChanBlocks[i][j][1])
             txidi += 1
             if p + 1 == processNum:
                 p = 0
@@ -158,7 +129,7 @@ def parallelCbSpends(config, lstChanBlocks, lstCbTxs, dictIdToPub, objPrivMiner)
 
     for b in range(0, len(bundles)):
         bundle = bundles[b]
-        bundles[b] = (config.fee, config.coinbaseReward, objPrivMiner, dictIdToPub, len(lstChanBlocks), bundle)
+        bundles[b] = (config.fee, objPrivMiner, dictIdToPub, len(lstChanBlocks), bundle)
 
     p = Pool(processes=processNum)
     lstlstSpendBlocks = p.map(onChainCbTxs, bundles)
@@ -183,25 +154,26 @@ def onChainCbTxs(args):
     :return: list of blocks with transactions that are coinbase spends, list of blocks with chans of the coinbase spent outs that matches lstSpendBlocks
     """
     fee = args[0]
-    reward = args[1]
-    objPrivMiner = args[2]
-    dictIdToPub = args[3]
-    iBlocks = args[4]
-    bundle = args[5]
+    objPrivMiner = args[1]
+    dictIdToPub = args[2]
+    iBlocks = args[3]
+    bundle = args[4]
     cbSolver = P2pkhSolver(objPrivMiner)
     lstSpendBlocks = [[] for i in range(0, iBlocks)]
     lstTupTxidChans = []
-
+    rewards = []
     for i in range(0, len(bundle)):
-        outputs = bundle[i][0]
+        outputs = bundle[i][0][0]
+        reward = bundle[i][0][1]
         xTx = bundle[i][1]
         bi = bundle[i][2]
         objTx = SegWitTransaction.unhexlify(xTx)
         cbSpend, tupTxidChans = spendCb(fee, reward, objTx, outputs, cbSolver, dictIdToPub)
         lstTupTxidChans += [tupTxidChans]
         lstSpendBlocks[bi] += [cbSpend]
+        rewards += [reward]
 
-    return lstSpendBlocks, lstTupTxidChans
+    return lstSpendBlocks, lstTupTxidChans, rewards
 
 
 
@@ -248,118 +220,48 @@ def spendCb(fee, reward, objTx, outputs, cbSolver, dictIdToPub):
     return cbTx, (cbTx.txid, chanIds)
 
 
-def parallelFundingTxs(config, lstSpendBlocks, lstChanOutBlocks, dictIdToPub, chanIdToChan, objPrivMiner):
+
+def setRealScids(config, objRpcB, txidToChan, chanidToChan, blockHashes):
     """
-    create funding txs that spend the txs that spend the coinbases
+    the transactions that are send via sendrawtransaction are not added to a block in the same order as they are sent,
+    This function queries bitcoinCli for the block and gets the correct scid
     :param config: config
-    :param lstSpendBlocks: list of blocks with transactions that are coinbase spends
-    :param lstChanOutBlocks: list of blocks with chans of the coinbase spent outs that matches lstSpendBlocks
-    :param dictIdToPub: dict of nodeid to public key
-    :param chanIdToChan: channelid to chan
-    :param objPrivMiner: priv key of miner
-    :return: list of blocks that cointain hex txs, mapping from tx to chan
+    :param objRpcB: proxy obj
+    :param txidToChan: dict mapping txid to chans
+    :param blockHashes: block hashes
     """
-    processNum = config.processNum
+    for hash in blockHashes:
+        r, objRpcB = bitcoinCli(config, objRpcB, "getblock", hash)
+        txids = r["tx"]
+        height = r["height"]
+        for i in range(1, len(txids)):
+            txid = txids[i]
+            scidtxi = i
+            lstChanid = txidToChan[txid]
+            for j in range(0, len(lstChanid)):
+                chanid = lstChanid[j]
+                chan = chanidToChan[chanid]
+                chan.scid.tx = scidtxi
+                chan.scid.height = height
+                chan.scid.output = j
 
-    bundles = [[] for i in range(0, processNum)]
-
-    p = 0
-    for i in range(0, len(lstSpendBlocks)):
-        block = lstSpendBlocks[i]
-        for j in range(0, len(block)):
-            bundles[p] += [(lstSpendBlocks[i][j], lstChanOutBlocks[i][j])]
-            if p + 1 == processNum:
-                p = 0
-            else:
-                p += 1
-
-    for i in range(0, len(bundles)):
-        bundle = bundles[i]
-        bundles[i] = (dictIdToPub, objPrivMiner, bundle)
-
-    p = Pool(processes=processNum)
-    r = p.map(onChainFundingTxs, bundles)
-    p.close()
-    lstFundingTxs = []
-    dictTxIdChan = {}
-    for lst in r:
-        if lst != []:
-            lstFundingTxs += lst[0]
-            for tup in lst[1]:
-                dictTxIdChan[tup[0]] = chanIdToChan[tup[1]]
-    lstFundingBlocks = blocksFundingTxs(config.maxTxPerBlock, lstFundingTxs)
-
-    return lstFundingBlocks, dictTxIdChan
-
-
-def onChainFundingTxs(args):
-    """
-    creates tx that funds lightning
-    :param args: args
-    :return: list of funding txs for outputs of a single spend of coinbase, tuple of (txid, channelid) that is used to make a dictionary in parallelFundingTxs
-    """
-    dictIdToPub = args[0]
-    objPrivMiner = args[1]
-    bundle = args[2]
-    lstFundingTxs= []
-    tupTxidChan = []
-    for i in range(0, len(bundle)):
-        spend = bundle[i][0]
-        chans = bundle[i][1]
-        for k in range(0, len(chans)):
-            chan = chans[k]
-            txoi = k
-            txin = spend.outs[txoi]
-            txid = spend.txid
-            bPubN1 = dictIdToPub[str(chan.node1.nodeid)]
-            bPubN2 = dictIdToPub[str(chan.node2.nodeid)]
-            fundingTx = spendToFunding(chan, txid, txin, txoi, objPrivMiner, bPubN1, bPubN2)
-            lstFundingTxs += [fundingTx.hexlify()]
-            tupTxidChan += [(fundingTx.txid, chan.channelid)]
-
-
-    return lstFundingTxs, tupTxidChan
-
-
-def spendToFunding(chan, txid, txin, txoi, objPrivMiner, bPubN1, bPubN2):
-    """
-    create a single lightning funding transaction
-    :param chan: channel copy
-    :param txid: txid
-    :param txin: output we are spending
-    :param txoi: input index
-    :param objPrivMiner: priv key
-    :param bPubN1: pub key of n1
-    :param bPubN2: pub key of n2
-    :return: lightning funding tx
-    """
-
-    if bPubN1.compressed < bPubN2.compressed:   #lexicographical ordering
-        multisig_script = MultisigScript(2, bPubN1, bPubN2, 2)
-    else:
-        multisig_script = MultisigScript(2, bPubN2, bPubN1, 2)
-
-    v = int(chan.value)
-    p2wsh_multisig = P2wshV0Script(multisig_script)
-    unsignedP2wsh = MutableTransaction(version=0,
-                                       ins=[TxIn(txid=txid,
-                                                 txout=txoi,
-                                                 script_sig=ScriptSig.empty(),
-                                                 sequence=Sequence.max())],
-                                       outs=[TxOut(value=v,
-                                                   n=0,
-                                                   script_pubkey=p2wsh_multisig)],
-                                       locktime=Locktime(0)
-                                       )
-    segwitSolver = P2wpkhV0Solver(privk=objPrivMiner)
-    fundingTx = unsignedP2wsh.spend([txin], [segwitSolver])
-
-    xmulti = p2wsh_multisig.hexlify()
-    #print("chan:", chan.channelid, "txid", fundingTx.txid, "multisig:", p2wsh_multisig.hexlify())   #for debugging
-    return fundingTx
+    return objRpcB
 
 
 #init functions
+
+def getNumBlocksToMine(chanBlocks):
+    """
+    get number blocks to mine to fund the channels including extra 100 to spend the blocks
+    :param chanBlocks: the outputs of coinbase txs put in blocks
+    :return: int
+    """
+    cbs = 0
+    for block in chanBlocks:
+        cbs += len(block)
+    blocksToMine = cbs + 100
+    return blocksToMine
+
 
 def init(config, blocksToMine):
     """
@@ -389,7 +291,7 @@ def init(config, blocksToMine):
         hashes, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", remainder, strAddrMiner)
         strBlockHashes += hashes
 
-    return objRpcB, objPrivMiner, strAddrMiner, strBlockHashes
+    return objRpcB, objPrivMiner, strAddrMiner, strBlockHashes[:-100]
 
 
 def clearBitcoinChain(config):
@@ -477,21 +379,20 @@ def bitcoinCli(config, objRpcB, cmd, *args):
     return r, objRpcB
 
 
-def getCoinbaseTxids(config, objRpcB):
+def getCoinbaseTxids(config, objRpcB, hashesCb):
     """
     get txids of coinbase txs that are spendable
     :param config: config
     :param objRpcB: proxy object
     :return: lastest proxy object, str txids of spendable coinbases
     """
-    unspentTxs, objRpcB = bitcoinCli(config, objRpcB, "listunspent")
-    txs = []
-    for tx in unspentTxs:
-        txid = tx["txid"]
-        r, objRpcB = bitcoinCli(config, objRpcB, "gettransaction", txid)
-        xtx = r["hex"]
-        txs += [xtx]
-    return objRpcB, txs
+    xtxs = []
+    for hashCb in hashesCb:
+        r, objRpcB = bitcoinCli(config, objRpcB, "getblock", hashCb, 2)
+        xtx = r["tx"][0]["hex"]
+        xtxs += [xtx]
+
+    return objRpcB, xtxs
 
 
 def txBlocksToHex(lstSpendBlocks):

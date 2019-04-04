@@ -50,11 +50,12 @@ def inversePowLawIntegral(y, a, b, c):
     x = pow(lower, upper) - b
     return x
 
-def randToPowerLaw(params):
-    zero = powLawIntegral(0,  params[0], params[1], params[2])
-    r = random.uniform(zero, 0)
+def randToPowerLaw(params, bound):
+    lower = powLawIntegral(bound[0],  params[0], params[1], params[2])
+    upper = powLawIntegral(bound[1],  params[0], params[1], params[2])
+    r = random.uniform(lower, upper)
     x = inversePowLawIntegral(r, params[0], params[1], params[2])
-    return round(x, 0)
+    return x
 
 
 def powerLawFunc(xs, a, b, c):
