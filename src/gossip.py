@@ -121,14 +121,14 @@ def genGossip(bundles, gossipFile, scidFile, gossipStore, writeNodes, l):
 
             writeList += [((ba, bscid, ivalue), (bu1, bu2), (bn1, bn2))]
 
-            # TODO: write every x number of channels
-            #if w == 100:
-            #    p = Process(target=writeProcess, args=(writeList, gossipFile, scidFile, gossipStore, l))
-            #    pList += [p]
-            #    p.start()
-            #    writeList = []
-            #    w = 0
-            #w += 1
+            #write every x number of channels
+            if w == 10000:
+                p = Process(target=writeProcess, args=(writeList, gossipFile, scidFile, gossipStore, l))
+                pList += [p]
+                p.start()
+                writeList = []
+                w = 0
+            w += 1
     p = Process(target=writeProcess, args=(writeList,gossipFile,scidFile, gossipStore, l))
     pList += [p]
     p.start()

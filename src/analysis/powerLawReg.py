@@ -27,7 +27,7 @@ def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwor
     covariance = None
     if reg:  #for doing regression
         params, covariance = powerLawRegressionParam(x, yProb)
-        params = [params[0], params[1]]
+        params = [params[0], params[1], params[2]]
     if graph:    #for plotting power law curve from experiment against new nodes scatterplot (called in build network)
         g.simpleFreqPlot(x, yProb)
         g.plotFunction(powerLawFunc, params, bounds, xaxisDescription="channels", yaxisDescription="probability")
@@ -39,25 +39,25 @@ def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwor
 def boundIntergral(func, params, a, b):
     return func(b, *params) - func(a, *params)
 
-def powLawIntegral(x, a, b):
-    y = (pow(x+b, (-1 * a)+1) / ((-1 * a)+1))
+def powLawIntegral(x, a, b, c):
+    y = (c*pow(x+b, (-1 * a)+1) / ((-1 * a)+1))
     return y
 
 
-def inversePowLawIntegral(y, a, b):
-    lower = (((y) * ((-1* a)+1)))
+def inversePowLawIntegral(y, a, b, c):
+    lower = (((y) * ((-1* a)+1))/c)
     upper = (1/((-1*a)+1))
     x = pow(lower, upper) - b
     return x
 
 def randToPowerLaw(params):
-    zero = powLawIntegral(0,  params[0], params[1])
+    zero = powLawIntegral(0,  params[0], params[1], params[2])
     r = random.uniform(zero, 0)
-    x = inversePowLawIntegral(r, params[0], params[1])
+    x = inversePowLawIntegral(r, params[0], params[1], params[2])
     return round(x, 0)
 
 
-def powerLawFunc(xs, a, b):
+def powerLawFunc(xs, a, b, c):
     """
     Power law function for regression
     :param xs: x list of data
@@ -67,7 +67,7 @@ def powerLawFunc(xs, a, b):
     #c is chosen so that integral 0<x<inf = 1.
     y = []
     for x in xs:
-        y += [(pow(x+b, -1*a))]
+        y += [(c*pow(x+b, -1*a))]
     return y
 
 def inversePowLawFunc(ys, a, b):

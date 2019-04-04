@@ -4,10 +4,11 @@ This network will be used for testing routing algorithms and channel syncing.
 
 ### Instructions on how to run without regenerating the network:
 
-1. Download 1M gossip and regtest chain: https://drive.google.com/file/d/1t2YvjmsLhUmqdyFNAw6Xl5VSyHIPJywu/view?usp=sharing
+1. Download 1M gossip and regtest chain: https://cli.re/6nWXVa
 
 2. A sample of the gossip produced can be found in data/1M/1M.gossip. 
    This file is split into smaller files. To combine files run:
+
        `tar xfJ data.tar.xz`
 
        `mv bitcoin ~\.bitcoin\1M` 
@@ -35,7 +36,7 @@ This network will be used for testing routing algorithms and channel syncing.
 
 ### Generating network or gossip from scratch
 
-1. main.py can create the network and/or the gossip messages. 
+1. main.py can create the network, regtest chain, or the gossip messages. 
    Running main.py with --build  builds and saves the network. 
    Running main.py with --chain generates the chain
    Running main.py with --gossip generates gossip (Note: running gossip without chain will lead to incorrect scids).

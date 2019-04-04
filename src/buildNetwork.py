@@ -14,16 +14,7 @@ import bisect
 from math import floor
 
 
-def buildNetwork(config):
-    #load snapshot of network
-    fp = open(config.listchannelsFile, encoding="utf-8")
-    jn = utility.loadJson(fp)
-    targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
-    targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
-    targetNetwork.channels = targetChannels
-    #analyze snapshot of network
-    targetNetwork.analysis.analyze()
-    utility.setRandSeed(config.randSeed)
+def buildNetwork(config, targetNetwork):
     #allocate number of channels per node for new network
     if config.maxChannels == "default":
         maxChannelsPerNodeUnscaled = getMaxChannels(targetNetwork)
@@ -44,7 +35,15 @@ def buildNetwork(config):
     utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
     return network, targetNetwork, gossipSequence
 
-
+def initTargetNetwork(config):
+    fp = open(config.listchannelsFile, encoding="utf-8")
+    jn = utility.loadJson(fp)
+    targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
+    targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
+    targetNetwork.channels = targetChannels
+    #analyze snapshot of network
+    targetNetwork.analysis.analyze()
+    return targetNetwork
 
 def scids(config, network):
     """
@@ -254,7 +253,9 @@ def capacityDistribution(config, network, targetNetwork):
     while len(capList) < nodeNum:
         x = powerLawReg.randToPowerLaw(params)
         #x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain. We do this because coinbase outputs -> segwit outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
-        while x == 0 or x > scaledMaxFunding or (x > (config.coinbaseReward-(2*config.fee))/interval):
+        if x < 1:
+            x = 1
+        while x > scaledMaxFunding or (x > (config.coinbaseReward-(2*config.fee))/interval):
             x = powerLawReg.randToPowerLaw(params)
         xSatoshis = round(x * interval)
         bisect.insort_left(capList, xSatoshis)

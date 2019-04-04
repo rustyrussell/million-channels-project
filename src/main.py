@@ -8,6 +8,8 @@ from common import graph, utility
 from os import path, mkdir, chdir
 import time
 
+
+
 def main():
     args = parse() 
     if args.config != None:
@@ -22,21 +24,22 @@ def main():
     if not path.exists(dir):
         mkdir(dir)
 
-    if not config.chain and not config.gossip and not config.build and not args.tests:
+    if not config.chain and not config.gossip and not config.build and not args.tests and not args.analyze:
         raise ValueError(
-            "Use --build and/or --gossip and/or --chain in cmd line to specify what actions to perform, (or set them to True in the config.py)")
+            "Use --build, --chain, --gossip, --analyze, --tests in cmd line to specify what actions to perform, (or set them to True in the config.py)")
 
-    init()
+    init(config)
 
+    if args.analyze or config.build:
+        targetNetwork = buildNetwork.initTargetNetwork(config)
     if config.build:
         t0 = time.time()
-        network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config)
+        network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config, targetNetwork)
         t1 = time.time()
         print("build network complete in", t1-t0)
         network.printNetworkStats()
     else:
         network, gossipSequence = utility.loadNetwork(config.nodesFile, config.channelsFile)
-
     if config.chain:
         t0 = time.time()
         try: 
@@ -51,7 +54,6 @@ def main():
         network = gossip.gossip(config, network, gossipSequence)
         t1 = time.time()
         print("gossip complete in", t1-t0)
-
     if args.tests: #TODO move tests to new function
         channelSum = 0
         maxChannelSum = 0
@@ -72,10 +74,8 @@ def main():
             if c.value is None:
                 print("in channel list: scid", c.scid, "of node1", c.node1, "node2", c.node2, "has None value")
         print("# of max channels", maxChannelSum//2)
-
     if args.draw:
         graph.igraphDraw(network.igraph)
-
     if args.analyze:
         print("power log: c*((x+b)^-a)")
         print("target network power law:", targetNetwork.analysis.channelDistPowLawParams[0])
@@ -159,8 +159,9 @@ def overrideConfig(args, config):
     return config
 
 
-def init():
+def init(config):
     SelectParams("regtest")
+    utility.setRandSeed(config.randSeed)
 
 
 main()
