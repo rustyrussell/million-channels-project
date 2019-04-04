@@ -15,24 +15,30 @@ from math import floor
 
 def buildNetwork(config, targetNetwork):
     #allocate number of channels per node for new network
+    initBuild(config, targetNetwork)
+    newNodes = nodeDistribution(config, targetNetwork)
+    # create nodes
+    network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
+    # create channels
+    gossipSequence = buildEdges(network)
+    tempScids(config, network)
+    # create capacity of channels
+    capacityDistribution(config, network, targetNetwork)
+    # write/save network to file
+    buildNodeDetails(config, targetNetwork, network)
+    utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
+    return network, targetNetwork, gossipSequence
+
+
+def initBuild(config, targetNetwork):
     if config.maxChannels == "default":
-        maxChannelsPerNodeUnscaled = getMaxChannels(targetNetwork)
+        maxChannelsPerNodeUnscaled = utility.getMaxChannels(targetNetwork)
         ratio = config.channelNum / targetNetwork.nodeNumber
         maxChannelsPerNode = int((ratio * maxChannelsPerNodeUnscaled) // 1)
         config.maxChannels = maxChannelsPerNode
     if config.maxFunding == "default":
-        config.maxFunding = getMaxNodeFunding(targetNetwork)
-    newNodes = nodeDistribution(config, targetNetwork)   # eventually a config command can turn on and off the rand dist
-    network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
-    # create channels
-    gossipSequence = buildEdges(network)
-    # create capacity of channels
-    capacityDistribution(config, network, targetNetwork)
-    tempScids(config, network)
-    # create details of nodes
-    buildNodeDetails(config, targetNetwork, network)
-    utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
-    return network, targetNetwork, gossipSequence
+        config.maxFunding = utility.getMaxNodeFunding(targetNetwork)
+
 
 def initTargetNetwork(config):
     fp = open(config.listchannelsFile, encoding="utf-8")
@@ -44,36 +50,6 @@ def initTargetNetwork(config):
     targetNetwork.analysis.analyze()
     return targetNetwork
 
-def tempScids(config, network):
-    """
-    Creates scids by calculating the starting height after coinbase blocks and spending coinbase blocks
-    :param config: config
-    :param network: network
-    :return:
-    """
-    scidHeight = 1
-    scidTx = 1
-
-    for i in range(0, len(network.channels)):
-        chan = network.channels[i]
-        chan.setScid(networkClasses.Scid(scidHeight, scidTx))
-        scidHeight, scidTx = incrementScid(config.maxTxPerBlock, scidHeight, scidTx)
-
-
-def getMaxChannels(targetNetwork):
-    maxC = 0
-    for n in targetNetwork.getNodes():
-        if n.maxChannels > maxC:
-            maxC = n.maxChannels
-    return maxC
-
-
-def getMaxNodeFunding(targetNetwork):
-    maxF = 0
-    for n in targetNetwork.getNodes():
-        if n.value > maxF:
-            maxF = n.value
-    return maxF
 
 def buildEdges(network):
     """
@@ -195,6 +171,21 @@ def buildEdges(network):
     return gossipSequence
 
 
+
+def tempScids(config, network):
+    """
+    Creates scids by calculating the starting height after coinbase blocks and spending coinbase blocks
+    :param config: config
+    :param network: network
+    :return:
+    """
+    scidHeight = 1
+    scidTx = 1
+    for i in range(0, len(network.channels)):
+        chan = network.channels[i]
+        chan.setScid(networkClasses.Scid(scidHeight, scidTx))
+        scidHeight, scidTx = incrementScid(config.maxTxPerBlock, scidHeight, scidTx)
+
 def incrementScid(maxFundingTxPerBlock, height, tx):
     """
     this will change in the future when 
@@ -224,7 +215,6 @@ def nodeDistribution(config, network):
     nodeidCounter = 0
     totalChannels = 0
     maxChannelsPerNode = config.maxChannels
-    x = 0
     x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
     while x > maxChannelsPerNode or x + totalChannels < channelsToCreate:
         x = round(x, 0)
@@ -237,10 +227,24 @@ def nodeDistribution(config, network):
             nodeidCounter += 1
         x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
 
-
     return nodes
 
+
 def capacityDistribution(config, network, targetNetwork):
+    """
+    Set satoshis of each channel.
+    Since regtest has low halving (every 150 blocks) the capacities have to be smaller than in the normal network.
+    View the capacities as having the denomination of the units defined in config.scalingUnits, rather than satoshis
+    :param config: config
+    :param network: network
+    :param targetNetwork: target network
+    """
+    nodesByChans = nodeCapacityDistribution(config, network, targetNetwork)
+    channelCapacities(targetNetwork, nodesByChans)
+    scaleCapacities(config, network.channels)
+
+
+def nodeCapacityDistribution(config, network, targetNetwork):
 
     nodeNum = len(network.getNodes())
     #start by generating a bunch of random capacities by generating random probs, and putting them in invert func
@@ -251,7 +255,8 @@ def capacityDistribution(config, network, targetNetwork):
     scaledMaxFunding = config.maxFunding/interval
     x = powerLawReg.randToPowerLaw(params, bound=(0, scaledMaxFunding))
     while len(capList) < nodeNum:
-        #x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain. We do this because coinbase outputs -> segwit outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
+        # x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain.
+        # We do this because coinbase outputs -> segwit outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
         if x > scaledMaxFunding or (x > (config.coinbaseReward-((config.fee))/interval)) or x == 0:
             continue
         else:
@@ -259,49 +264,50 @@ def capacityDistribution(config, network, targetNetwork):
             bisect.insort_left(capList, satoshis)
         x = powerLawReg.randToPowerLaw(params, bound=(0, scaledMaxFunding))
 
-
     #TODO do swapping in list to make it more random but for the most part sorted from greatest to least
-
-    #sort network in reverse order by number of channels
     nodesByChans = network.getNodes().copy()
     nodesByChans.sort(key=utility.sortByChannelCount, reverse=False)
-
-    #assign each node in reverse order a capacity in the order of the semi sorted list
+    #sort network in reverse order by number of channels
     for i in range (nodeNum-1, -1, -1):
-        currCap = utility.scaleSatoshis(capList[i], config.scalingUnits)
+        #assign each node in reverse order a capacity in the order of the semi sorted list.
+        currCap = capList[i]
         currNode = nodesByChans[i]
         currNode.setUnallocated(currCap)
         currNode.setAllocation(currCap)
         currNode.channels.sort(key=currNode.getValueLeftOfOtherNode, reverse=True)
 
+    return nodesByChans
+
+
+def channelCapacities(targetNetwork, nodesByChans):
+    nodeNum = len(nodesByChans)
     capPercent = targetNetwork.analysis.channelCapacityInNodeParams[1][2]
     rankingSize = targetNetwork.analysis.channelCapacityInNodeParams[2]
     begin = 0
     nodei = 0
-    chani = 0 #index of channel in node. The ones before it already have capacities
+    chani = 0  # index of channel in node. The ones before it already have capacities
     defaultMinSatoshis = 1000
-    while begin < nodeNum: #while there are still nodes that have channels left to create
+    while begin < nodeNum:  # while there are still nodes that have channels left to create
         currNode = nodesByChans[nodei]
 
         # determine how many channels left to create
-
-        if chani+1 == currNode.channelCount: #we wrap around sooner because another node is complete
+        if chani + 1 == currNode.channelCount:  # we wrap around sooner because another node is complete
             begin += 1
 
         chan = currNode.channels[chani]
 
         if chan.value is None:
-            if chani < rankingSize: #we choose based on linear reg
+            if chani < rankingSize:  # we choose based on linear reg
                 per = capPercent[chani]
                 alloc = currNode.allocation
-                newCap = round(per*alloc)
+                newCap = round(per * alloc)
                 chan.value = newCap
                 otherNode = currNode.getOtherNode(chan)
                 otherNode.unallocated -= newCap
                 otherNode.value += newCap
                 currNode.unallocated -= newCap
                 currNode.value += newCap
-            else:   # we finish off node by randomly allocating rest of channels with even split of rest of capacity
+            else:  # we finish off node by randomly allocating rest of channels with even split of rest of capacity
                 otherNode = currNode.getOtherNode(chan)
                 otherUnalloc = otherNode.unallocated
                 unalloc = currNode.unallocated
@@ -332,16 +338,23 @@ def capacityDistribution(config, network, targetNetwork):
         else:
             nodei += 1
 
-    #for each node, order channels by
-    pass
+def scaleCapacities(config, channels):
+    """
+    scale capacities according to the units in config.capacities.
+    :param config: config
+    :param channels: channels objs
+    """
+    div = utility.getScaleDiv(config.scalingUnits)
+    for c in channels:
+        c.value = utility.scaleSatoshis(c.value, div)
 
 
 def buildNodeDetails(config, targetNetwork, network=None):
     """
-    :param targetNetwork:
-    :param config:
-    :param network:
-    :return:
+    Set addreses of nodes and set if the nodes will announce themselves
+    :param targetNetwork: target
+    :param config: config
+    :param network: network
     """
     fp = open(config.listnodesFile, encoding="utf-8")
     jn = utility.loadJson(fp)
@@ -476,7 +489,6 @@ def getNextIPv6(ipv6):
     return ipv6
 
 
-
 def getRandomTor(v):
     port = [38, 7]  # 9735 in decimal
     if v == 2:
@@ -491,7 +503,6 @@ def setChannelsToAnnounceNodes(nodes):
     for node in nodes:
         if node.announce:
             node.channels[0].setNodeToWrite(node)
-
 
 
 def setAllChannelsDefaultValue(network, value):

@@ -185,11 +185,17 @@ def calcNetworkValue(network):
     return networkValue
 
 
+def getScaleDiv(scalingUnits):
+    # a satoshi is .00000001 of a btc
+    satUnit = .00000001
+    div = scalingUnits / satUnit
+    return div
 
-def scaleSatoshis(satoshis, scalingUnits):
-    satoshis = .00000001       # a satoshi is .00000001 of a btc
-    div = satoshis / scalingUnits
-    scaledSatoshis = satoshis // div  # we have to scale it so that regtest has enough bitcoin to fund because of low halving interval
+
+def scaleSatoshis(satoshis, div):
+    scaledSatoshis = int(satoshis // div)  # we have to scale it so that regtest has enough bitcoin to fund because of low halving interval
+    if scaledSatoshis == 0:
+        scaledSatoshis = 1
     return scaledSatoshis
 
 
@@ -197,6 +203,21 @@ def setMaxChannels(nodes):
     for n in nodes:
         n.setMaxChannels(n.channelCount)
 
+
+def getMaxChannels(targetNetwork):
+    maxC = 0
+    for n in targetNetwork.getNodes():
+        if n.maxChannels > maxC:
+            maxC = n.maxChannels
+    return maxC
+
+
+def getMaxNodeFunding(targetNetwork):
+    maxF = 0
+    for n in targetNetwork.getNodes():
+        if n.value > maxF:
+            maxF = n.value
+    return maxF
 
 def channelMaxSortKey(node):
     """
