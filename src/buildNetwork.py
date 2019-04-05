@@ -256,7 +256,7 @@ def nodeCapacityDistribution(config, network, targetNetwork):
     x = powerLawReg.randToPowerLaw(params, bound=(0, scaledMaxFunding))
     while len(capList) < nodeNum:
         # x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain.
-        # We do this because coinbase outputs -> segwit outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
+        # We do this because coinbase outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
         if x > scaledMaxFunding or (x > (config.coinbaseReward-((config.fee))/interval)) or x == 0:
             continue
         else:
@@ -337,6 +337,8 @@ def channelCapacities(targetNetwork, nodesByChans):
             chani += 1
         else:
             nodei += 1
+
+
 
 def scaleCapacities(config, channels):
     """

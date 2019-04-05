@@ -119,7 +119,7 @@ def genGossip(bundles, gossipFile, scidFile, gossipStore, writeNodes, l):
                 n2 = createNodeAnnouncment(node2)
                 bn2 = n2.serialize(full=True)
 
-            writeList += [((ba, bscid, ivalue), (bu1, bu2), (bn1, bn2))]
+            writeList += [((ba, channel.scid, ivalue), (bu1, bu2), (bn1, bn2))]
 
             #write every x number of channels
             if w == 10000:
@@ -324,7 +324,7 @@ def initGossip(gossipFile, scidSatoshiFile, channelNum, gossipStore):
         os.remove(scidSatoshiFile)  # delete current generate store if it exists
     with open(scidSatoshiFile, "a") as fp:
         fp.write(str(channelNum) + "\n")
-        fp.write("scid,satoshis\n")
+        fp.write("scid ,satoshis\n")
 
 
 def writeProcess(writeList, gossipFile, scidSatoshisFile, gossipStore, l):
@@ -418,7 +418,7 @@ def writeChannelUpdate(u, fp, fullGossipStoreFlag):
 
 def writeScidSatoshi(scid, iValue, scidsatoshisFile):
     with open(scidsatoshisFile, "a") as fp:
-        fp.write(scid.hex()+" ,"+str(iValue)+"\n")
+        fp.write(str(scid.height)+"x"+str(scid.tx)+"x"+str(scid.output)+" ,"+str(iValue)+"\n")
 
 
 WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT = bytearray().fromhex("1000")

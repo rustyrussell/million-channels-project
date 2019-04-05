@@ -4,7 +4,7 @@ This network will be used for testing routing algorithms and channel syncing.
 
 ### Instructions on how to run without regenerating the network:
 
-1. Download 1M gossip and regtest chain: https://cli.re/6nWXVa
+1. Download 1M gossip and regtest chain: https://drive.google.com/drive/folders/10uda9L7EtwctCAoU9EzH3PnKMs7tx7Fd?usp=sharing 
 
 2. A sample of the gossip produced can be found in data/1M/1M.gossip. 
    This file is split into smaller files. To combine files run:
@@ -27,11 +27,9 @@ This network will be used for testing routing algorithms and channel syncing.
        
        `./create-gossipstore --verbose 100000 -i /path/to/gossip -o ~/path/to/.lightning-datadir`
 
-4. Change regtest halving constant (consensus.nSubsidyHalvingInterval) in bitcoin/src/chainparams.cpp from 150 to 21000000. Then, ./configure and make bitcoin.
+4. Set fields in config.py that are currently set to /your/path/here (or pass in cmdline args to set them)
 
-5. Set fields in config.py that are currently set to /your/path/here (or pass in cmdline args to set them)
-
-6. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
+5. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
     `./lightning-cli listchannels` <-- should return ~1M channels  
 
 ### Generating network or gossip from scratch

@@ -26,8 +26,8 @@ def buildChain(config, network):
     lstSpendBlocks, dictTxidToChans = parallelCbSpends(config, lstChanBlocks, lstCbTxs, dictIdToPub, objPrivMiner)
     #spend coinbase transactions that are in spendBlocks
     xlstSpendBlocks = txBlocksToHex(lstSpendBlocks)
-    coinbaseHashes, objRpcB = sendRawTxs(config, objRpcB, xlstSpendBlocks, strAddrMiner)
-    objRpcB = setRealScids(config, objRpcB, dictTxidToChans, chanIdToChan, coinbaseHashes)
+    spendHashes, objRpcB = sendRawTxs(config, objRpcB, xlstSpendBlocks, strAddrMiner)
+    objRpcB = setRealScids(config, objRpcB, dictTxidToChans, chanIdToChan, spendHashes)
     killBitcoind()
     return network
 
@@ -118,9 +118,7 @@ def parallelCbSpends(config, lstChanBlocks, lstCbTxs, dictIdToPub, objPrivMiner)
         block = lstChanBlocks[i]
         for j in range(0, len(block)):
             bundles[p] += [(lstChanBlocks[i][j], lstCbTxs[txidi], i)]
-            if  SegWitTransaction.unhexlify(lstCbTxs[txidi]).outs[0].value != lstChanBlocks[i][j][1]:
-                print("not eq")
-            print(txidi, ":", SegWitTransaction.unhexlify(lstCbTxs[txidi]).outs[0].value, lstChanBlocks[i][j][1])
+            #print(txidi, ":", SegWitTransaction.unhexlify(lstCbTxs[txidi]).outs[0].value, lstChanBlocks[i][j][1])
             txidi += 1
             if p + 1 == processNum:
                 p = 0
