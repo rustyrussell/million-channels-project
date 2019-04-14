@@ -36,7 +36,7 @@ This network will be used for testing routing algorithms and channel syncing.
 
 1. main.py can create the network, regtest chain, or the gossip messages. 
    Running main.py with --build  builds and saves the network. 
-   Running main.py with --chain generates the chain
+   Running main.py with --chain generates the chain.
    Running main.py with --gossip generates gossip (Note: running gossip without chain will lead to incorrect scids).
 
 2. building the network consists of analyzing a provided network and scaling it up. 

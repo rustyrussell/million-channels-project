@@ -23,7 +23,6 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
                     other = chan.node1
                 connList[i] += [other.value - chan.value]
                 perList[i] += [chan.value/n.value]
-                # connList[i] += [other.channelCount - 1]
     xs = [i for i in range(0, chanCount, 1)]
     for i in range (0, len(connList)):
         ys += [sum(connList[i])/len(connList[i])]
@@ -31,22 +30,28 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
 
     paramsOther, covarianceOther = optimize.curve_fit(linearFunc, xs, ys)
     paramsPer, covariancePer = None, None
-
-    if powerReg:
-        paramsPer, covariancePer = powerLawReg.powerLawRegressionParam(xs, ysPer)    #uncomment to see the reg results
-
-        if graph:
-            bounds = (0, 30, 1)
-            g.simpleFreqPlot(xs, ysPer)
-            xaxis = "channel in node ranked by capacity from least to greatest, maximum " + str(chanCount) + " channels"
-            yaxis = "channel capacity"
-            g.plotFunction(powerLawReg.powerLawFunc, paramsPer, bounds, xaxis, yaxis)
-            plt.autoscale()
-            plt.show()
+    #print(xs)
+    print(ysPer)
+    paramsPer, covariancePer = powerLawReg.powerLawRegressionParam(xs, ysPer)
 
     if graph:
+        #plot powerlaw
+        fig, ax = plt.subplots()
         bounds = (0, 30, 1)
         g.simpleFreqPlot(xs, ysPer)
+        xaxis = "channel in node ranked by capacity from least to greatest, maximum " + str(chanCount) + " channels"
+        yaxis = "channel capacity"
+        g.plotFunction(powerLawReg.powerLawFunc, paramsPer, bounds, xaxis, yaxis)
+        plt.title("channels by percentage of total capacity in node")
+        props = dict(boxstyle="round", facecolor="wheat", alpha=.5)
+        text = r'$\alpha$' + " = " + str(paramsPer[0])[0:5] + "\n" + r'$\beta$' + " = " + str(paramsPer[1])[0:5] + "\n" + "c = " + str(paramsPer[2])[0:5] 
+        ax.text(.75, .95, text, fontsize=14, verticalalignment="top", transform=ax.transAxes, bbox=props)
+        plt.autoscale()
+        plt.show()
+
+        #plot linear
+        bounds = (0, 30, 1)
+        g.simpleFreqPlot(xs, ys)
         xaxis = "channel in node ranked by capacity from least to greatest, maximum " + str(chanCount) + " channels"
         yaxis = "total capacity of other node in channel - capacity in channel"
         g.plotFunction(linearFunc, paramsOther, bounds, xaxis, yaxis)
@@ -63,7 +68,7 @@ def nodeCapacityInNetPowLaw(nodes, graph=False):
     for n in nodes:
         v = n.value
         if v > 0:
-            scaledV = round(v/interval)
+            scaledV = int(round(v/interval))
             yfreq += [0 for i in range(len(yfreq), scaledV+1)]
             yfreq[scaledV] += 1
     ys = yfreq

@@ -13,7 +13,7 @@ def igraphDraw(ig, bbox=(0,0,2000,2000)):
     drawing.plot(ig, bbox=bbox)
 
 
-def simpleFreqPlot(x, y, xscale=False, yscale=False):
+def simpleFreqPlot(x, y, plot=plt, xscale=False, yscale=False):
     """
     Create simple scatterplot in matplotlib library
     :param x: x list
@@ -22,7 +22,7 @@ def simpleFreqPlot(x, y, xscale=False, yscale=False):
     :param yscale: bool log scale on y axis
     :return:
     """
-    plt.scatter(x, y)
+    plot.scatter(x, y)
 
     if xscale:
         plt.xscale('log')      # this axis scales in log better than y-axis log scale
@@ -30,7 +30,7 @@ def simpleFreqPlot(x, y, xscale=False, yscale=False):
         plt.yscale('log')
 
 
-def plotFunction(func, params, rangeTup, xaxisDescription, yaxisDescription):
+def plotFunction(func, params, rangeTup, xaxisDescription, yaxisDescription, plot=plt):
     """
     plot a function over x range define in rangeTup
     :param func: function that maps x->y
@@ -38,7 +38,7 @@ def plotFunction(func, params, rangeTup, xaxisDescription, yaxisDescription):
     :return: None
     """
     rr = np.arange(rangeTup[0], rangeTup[1], rangeTup[2])
-    plt.plot(rr, func(rr, *params))
-    plt.xlabel(xaxisDescription)
-    plt.ylabel(yaxisDescription)
+    plot.plot(rr, func(rr, *params))
+    plot.xlabel(xaxisDescription)
+    plot.ylabel(yaxisDescription)
 

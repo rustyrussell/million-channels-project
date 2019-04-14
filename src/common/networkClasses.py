@@ -297,22 +297,22 @@ class Analysis:
     def __init__(self, network):
         self.network = network
 
-    def analyze(self):
-        self.channelDistPowLaw()
-        self.nodeCapacityInNetPowLaw()
-        self.channelCapacityInNodeLinear()
+    def analyze(self, graph=False):
+        self.channelDistPowLaw(graph)
+        self.nodeCapacityInNetPowLaw(graph)
+        self.channelCapacityInNode(graph)
 
-    def channelDistPowLaw(self):
+    def channelDistPowLaw(self, graph=False):
         isIncomplete = not isinstance(self.network, IncompleteNetwork)
-        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=False, completeNetwork=isIncomplete ) #only fully connected nodes get analyzed
+        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=graph, completeNetwork=isIncomplete ) #only fully connected nodes get analyzed
         self.channelDistPowLawParams = (params, covariance, x, yProb)
 
-    def nodeCapacityInNetPowLaw(self):
-        params, covariance, interval = fundingReg.nodeCapacityInNetPowLaw(self.network.getNodes(), graph=False)
+    def nodeCapacityInNetPowLaw(self, graph=False):
+        params, covariance, interval = fundingReg.nodeCapacityInNetPowLaw(self.network.getNodes(), graph=graph)
         self.nodeCapacityInNetPowLawParams = (params, covariance, interval)
 
-    def channelCapacityInNodeLinear(self):
-        otherNodeLinearExperiment, capPercentExperiment, rankingSize  = fundingReg.channelCapacityInNode(self.network.getNodes(), graph=False)
+    def channelCapacityInNode(self, graph=False):
+        otherNodeLinearExperiment, capPercentExperiment, rankingSize  = fundingReg.channelCapacityInNode(self.network.getNodes(), graph=graph, powerReg=True)
         self.channelCapacityInNodeParams = (otherNodeLinearExperiment, capPercentExperiment, rankingSize)
 
     def betweenness(self):

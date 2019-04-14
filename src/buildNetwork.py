@@ -26,7 +26,6 @@ def buildNetwork(config, targetNetwork):
     capacityDistribution(config, network, targetNetwork)
     # write/save network to file
     buildNodeDetails(config, targetNetwork, network)
-    utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
     return network, targetNetwork, gossipSequence
 
 
@@ -40,14 +39,14 @@ def initBuild(config, targetNetwork):
         config.maxFunding = utility.getMaxNodeFunding(targetNetwork)
 
 
-def initTargetNetwork(config):
+def initTargetNetwork(config, graph):
     fp = open(config.listchannelsFile, encoding="utf-8")
     jn = utility.loadJson(fp)
     targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
     targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
     targetNetwork.channels = targetChannels
     #analyze snapshot of network
-    targetNetwork.analysis.analyze()
+    targetNetwork.analysis.analyze(graph)
     return targetNetwork
 
 
@@ -241,7 +240,7 @@ def capacityDistribution(config, network, targetNetwork):
     """
     nodesByChans = nodeCapacityDistribution(config, network, targetNetwork)
     channelCapacities(targetNetwork, nodesByChans)
-    scaleCapacities(config, network.channels)
+    scaleCapacities(config, network.channels, network.getNodes())
 
 
 def nodeCapacityDistribution(config, network, targetNetwork):
@@ -340,7 +339,7 @@ def channelCapacities(targetNetwork, nodesByChans):
 
 
 
-def scaleCapacities(config, channels):
+def scaleCapacities(config, channels, nodes):
     """
     scale capacities according to the units in config.capacities.
     :param config: config
@@ -349,7 +348,8 @@ def scaleCapacities(config, channels):
     div = utility.getScaleDiv(config.scalingUnits)
     for c in channels:
         c.value = utility.scaleSatoshis(c.value, div)
-
+    for n in nodes:
+        n.value = utility.scaleSatoshis(n.value, div)
 
 def buildNodeDetails(config, targetNetwork, network=None):
     """

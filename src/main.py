@@ -30,15 +30,26 @@ def main():
     init(config)
 
     if args.analyze or config.build:
-        targetNetwork = buildNetwork.initTargetNetwork(config)
+        if args.analyze:
+            graph = True
+        else:
+            graph = False
+        targetNetwork = buildNetwork.initTargetNetwork(config, graph)
     if config.build:
         t0 = time.time()
         network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config, targetNetwork)
         t1 = time.time()
         print("build network complete in", t1-t0)
         network.printNetworkStats()
+        if args.analyze:
+            print("power log: c*((x+b)^-a)")
+            print("target network power law:", targetNetwork.analysis.channelDistPowLawParams[0])
+            network.analysis.analyze(True)
+            print("new network power law:", network.analysis.channelDistPowLawParams[0])
     else:
         network, gossipSequence = utility.loadNetwork(config.nodesFile, config.channelsFile)
+    if args.draw:
+        graph.igraphDraw(network.igraph)
     if config.chain:
         t0 = time.time()
         try: 
@@ -47,12 +58,15 @@ def main():
             chain.killBitcoind()
         t1 = time.time()
         print("build chain complete in", t1-t0)
+
+    if config.chain or config.build:
         utility.writeNetwork(network, gossipSequence, config.nodesFile, config.channelsFile)
     if config.gossip:
         t0 = time.time()
         network = gossip.gossip(config, network, gossipSequence)
         t1 = time.time()
         print("gossip complete in", t1-t0)
+
     if args.tests: #TODO move tests to new function
         channelSum = 0
         maxChannelSum = 0
@@ -73,14 +87,6 @@ def main():
             if c.value is None:
                 print("in channel list: scid", c.scid, "of node1", c.node1, "node2", c.node2, "has None value")
         print("# of max channels", maxChannelSum//2)
-    if args.draw:
-        graph.igraphDraw(network.igraph)
-    if args.analyze:
-        print("power log: c*((x+b)^-a)")
-        print("target network power law:", targetNetwork.analysis.channelDistPowLawParams[0])
-        network.analysis.channelDistPowLaw()
-        print("new network power law:", network.analysis.channelDistPowLawParams[0])
-
 
 def parse():
     parse = argparse.ArgumentParser()
