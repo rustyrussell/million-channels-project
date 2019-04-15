@@ -190,7 +190,7 @@ class Network:
     Network class contains nodes and analysis on the network.
     """
 
-    def __init__(self, fullConnNodes, channels=None):
+    def __init__(self, fullConnNodes, scalingUnits, channels=None):
         """
         Create a network where the nodes do not have the channels passed in
         :param fullConnNodes:
@@ -198,7 +198,7 @@ class Network:
         """
         self.fullConnNodes = fullConnNodes
         self.nodeNumber = len(fullConnNodes)
-        self.analysis = Analysis(self)
+        self.analysis = Analysis(self, scalingUnits)
         if channels is not None:
             self.channels = channels
         else:
@@ -261,8 +261,8 @@ class IncompleteNetwork(Network):     # inherits Network class
     """
     Incomplete network that inherits Network. This is used when the network is being built. 
     """
-    def __init__(self, fullConnNodes, disconnNodes, partConnNodes=None, unfullNodes=None, igraph=None):
-        Network.__init__(self, fullConnNodes)
+    def __init__(self, fullConnNodes, disconnNodes, scalingUnits, partConnNodes=None, unfullNodes=None, igraph=None):
+        Network.__init__(self, fullConnNodes, scalingUnits)
         self.disconnNodes = disconnNodes
         self.unfullNodes = disconnNodes
         if partConnNodes == None:
@@ -294,7 +294,8 @@ class Analysis:
     """
     Analysis on the network are the power law and cluster experiments
     """
-    def __init__(self, network):
+    def __init__(self, network, scalingUnits):
+        self.scalingUnits = scalingUnits
         self.network = network
 
     def analyze(self, graph=False):
@@ -304,11 +305,11 @@ class Analysis:
 
     def channelDistPowLaw(self, graph=False):
         isIncomplete = not isinstance(self.network, IncompleteNetwork)
-        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=graph, completeNetwork=isIncomplete ) #only fully connected nodes get analyzed
+        params, covariance, x, yProb = powerLawReg.powerLawExperiment(self.network.getConnNodes(), graph=graph, completeNetwork=isIncomplete) #only fully connected nodes get analyzed
         self.channelDistPowLawParams = (params, covariance, x, yProb)
 
     def nodeCapacityInNetPowLaw(self, graph=False):
-        params, covariance, interval = fundingReg.nodeCapacityInNetPowLaw(self.network.getNodes(), graph=graph)
+        params, covariance, interval = fundingReg.nodeCapacityInNetPowLaw(self.scalingUnits, self.network.getNodes(), graph=graph)
         self.nodeCapacityInNetPowLawParams = (params, covariance, interval)
 
     def channelCapacityInNode(self, graph=False):

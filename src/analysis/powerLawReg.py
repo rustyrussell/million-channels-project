@@ -15,7 +15,7 @@ import random
 #functions
 
 #regression and power law function
-def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwork=False, bounds=(0, 1000, 1)):
+def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwork=False):
     """
     The power law experiment fits a regression to the data and plots the data and the regression power law curve
     :return: alpha, covariance
@@ -30,6 +30,7 @@ def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwor
         params = [params[0], params[1], params[2]]
     if graph:    #for plotting power law curve from experiment against new nodes scatterplot (called in build network)
         fig, ax = plt.subplots()
+        bounds = (1, max(x), 1)
         g.simpleFreqPlot(x, yProb, plot=plt)
         g.plotFunction(powerLawFunc, params, bounds, xaxisDescription="channels", yaxisDescription="probability", plot=plt)
         plt.title("prob. dist. of a node with X amount of channels. Power Law fitted to data.")

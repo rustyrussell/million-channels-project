@@ -5,14 +5,17 @@ from analysis import powerLawReg
 
 def channelCapacityInNode(nodes, graph=False, powerReg=False):
     #looking at corr value of otherNode in channel and channel capacity
-    chanCount = 15
-    ys = []
+    interval = 100000
+    rankingSize = 6
+    ysOther = []
     ysPer = []
-    perList = [[] for i in range(0, chanCount)]
-    connList = [[] for i in range(0, chanCount)]
+    perList = [[] for i in range(0, rankingSize)]
+    connList = [[] for i in range(0, rankingSize)]
     for n in nodes:
+        if len(n.channels) < rankingSize:
+            continue
         n.channels.sort(key=utility.sortByChanValue, reverse=True)
-        for i in range(0, chanCount):
+        for i in range(0, rankingSize):
             if i == n.channelCount:
                 break
             else:
@@ -23,24 +26,21 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
                     other = chan.node1
                 connList[i] += [other.value - chan.value]
                 perList[i] += [chan.value/n.value]
-    xs = [i for i in range(0, chanCount, 1)]
+    xs = [i for i in range(0, rankingSize)]
     for i in range (0, len(connList)):
-        ys += [sum(connList[i])/len(connList[i])]
+        ysOther += [int(round(sum(connList[i])/(len(connList[i])*interval)))]
         ysPer += [sum(perList[i])/len(perList[i])]
 
-    paramsOther, covarianceOther = optimize.curve_fit(linearFunc, xs, ys)
-    paramsPer, covariancePer = None, None
-    #print(xs)
-    print(ysPer)
+    paramsOther, covarianceOther = optimize.curve_fit(linearFunc, xs, ysOther)
     paramsPer, covariancePer = powerLawReg.powerLawRegressionParam(xs, ysPer)
 
     if graph:
         #plot powerlaw
         fig, ax = plt.subplots()
-        bounds = (0, 30, 1)
+        bounds = (0, rankingSize, 1)
         g.simpleFreqPlot(xs, ysPer)
-        xaxis = "channel in node ranked by capacity from least to greatest, maximum " + str(chanCount) + " channels"
-        yaxis = "channel capacity"
+        xaxis = "channel in node ranked by capacity from greatest to least, maximum " + str(rankingSize) + " channels"
+        yaxis = "percent of total node capacity"
         g.plotFunction(powerLawReg.powerLawFunc, paramsPer, bounds, xaxis, yaxis)
         plt.title("channels by percentage of total capacity in node")
         props = dict(boxstyle="round", facecolor="wheat", alpha=.5)
@@ -50,30 +50,35 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
         plt.show()
 
         #plot linear
-        bounds = (0, 30, 1)
-        g.simpleFreqPlot(xs, ys)
-        xaxis = "channel in node ranked by capacity from least to greatest, maximum " + str(chanCount) + " channels"
+        fig, ax = plt.subplots()
+        bounds = (0, rankingSize, 1)
+        g.simpleFreqPlot(xs, ysOther)
+        xaxis = "channel in node ranked by capacity from greatest to least, maximum " + str(rankingSize) + " channels"
         yaxis = "total capacity of other node in channel - capacity in channel"
         g.plotFunction(linearFunc, paramsOther, bounds, xaxis, yaxis)
+        plt.title("relationship between capacity of channel C and total capacity of other node - C")
+        props = dict(boxstyle="round", facecolor="wheat", alpha=.5)
+        text = r'$\alpha$' + " = " + str(paramsOther[0]) + "\n" + r'$\beta$' + " = " + str(paramsOther[1]) 
+        ax.text(.40, .95, text, fontsize=14, verticalalignment="top", transform=ax.transAxes, bbox=props)
         plt.autoscale()
         plt.show()
 
-    return (paramsOther, covarianceOther), (paramsPer, covariancePer, ysPer), chanCount
+    return (paramsOther, covarianceOther), (paramsPer, covariancePer, ysPer), rankingSize
 
 
-def nodeCapacityInNetPowLaw(nodes, graph=False):
+def nodeCapacityInNetPowLaw(scalingUnits, nodes, graph=False):
     #power law of freq of capacity -> capacity
     yfreq = []
-    interval = 100000
+    interval = 1000000
     for n in nodes:
         v = n.value
         if v > 0:
-            scaledV = int(round(v/interval))
+            scaledV = int(v/interval)
             yfreq += [0 for i in range(len(yfreq), scaledV+1)]
             yfreq[scaledV] += 1
     ys = yfreq
     #now add sliding window
-    slide = 50
+    slide = 100
     ytup = (ys[i:] for i in range(0, slide))
     yzip = zip(*ytup)
     yset = list(yzip)
@@ -85,16 +90,22 @@ def nodeCapacityInNetPowLaw(nodes, graph=False):
         if y > 0:
             ys += [y]
             xs += [i]
+
+    
     yProb = powerLawReg.freqDataToProbData(ys, sum(ys))
     params, covariance = powerLawReg.powerLawRegressionParam(xs, yProb)
 
     if graph:
-        print(params)
+        fig, ax = plt.subplots()
         g.simpleFreqPlot(xs, yProb)
-        bounds = (-1, 30000, 1)
+        bounds = (-6, max(xs), 1)
         xaxis = "capacity / 10^6 satoshis ; slide = " + str(slide)
         yaxis = "prob"
         g.plotFunction(powerLawReg.powerLawFunc, params, bounds, xaxis, yaxis)
+        plt.title("prob. dist. of total capacity of channels of a node")
+        props = dict(boxstyle="round", facecolor="wheat", alpha=.5)
+        text = r'$\alpha$' + " = " + str(params[0])[0:5] + "\n" + r'$\beta$' + " = " + str(params[1])[0:5] + "\n" + "c = " + str(params[2])[0:5] 
+        ax.text(.75, .95, text, fontsize=14, verticalalignment="top", transform=ax.transAxes, bbox=props)
         plt.autoscale()
         plt.show()
 

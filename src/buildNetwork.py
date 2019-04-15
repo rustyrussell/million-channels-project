@@ -18,7 +18,7 @@ def buildNetwork(config, targetNetwork):
     initBuild(config, targetNetwork)
     newNodes = nodeDistribution(config, targetNetwork)
     # create nodes
-    network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes)
+    network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes, scalingUnits=config.scalingUnits)
     # create channels
     gossipSequence = buildEdges(network)
     tempScids(config, network)
@@ -43,7 +43,7 @@ def initTargetNetwork(config, graph):
     fp = open(config.listchannelsFile, encoding="utf-8")
     jn = utility.loadJson(fp)
     targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
-    targetNetwork = networkClasses.Network(fullConnNodes=targetNodes)
+    targetNetwork = networkClasses.Network(fullConnNodes=targetNodes, scalingUnits=config.scalingUnits)
     targetNetwork.channels = targetChannels
     #analyze snapshot of network
     targetNetwork.analysis.analyze(graph)
@@ -240,8 +240,6 @@ def capacityDistribution(config, network, targetNetwork):
     """
     nodesByChans = nodeCapacityDistribution(config, network, targetNetwork)
     channelCapacities(targetNetwork, nodesByChans)
-    scaleCapacities(config, network.channels, network.getNodes())
-
 
 def nodeCapacityDistribution(config, network, targetNetwork):
 
@@ -268,14 +266,25 @@ def nodeCapacityDistribution(config, network, targetNetwork):
     nodesByChans.sort(key=utility.sortByChannelCount, reverse=False)
     #sort network in reverse order by number of channels
     for i in range (nodeNum-1, -1, -1):
-        #assign each node in reverse order a capacity in the order of the semi sorted list.
         currCap = capList[i]
         currNode = nodesByChans[i]
         currNode.setUnallocated(currCap)
         currNode.setAllocation(currCap)
         currNode.channels.sort(key=currNode.getValueLeftOfOtherNode, reverse=True)
-
+        nodes = swapFunc(.25, currNode.channels)   # a really gross hardcoded non-generalizable hack to help get the distribution correct. 
     return nodesByChans
+
+
+def swapFunc(prob, lst):
+    swaps = int(round(prob * len(lst)))
+    for i in range(0, swaps):
+        r1 = random.randint(0, swaps-1)
+        r2 = random.randint(0, swaps-1)
+        temp = lst[r1]
+        lst[r1] = lst[r2]
+        lst[r2] = temp
+    return lst
+    
 
 
 def channelCapacities(targetNetwork, nodesByChans):
@@ -294,36 +303,29 @@ def channelCapacities(targetNetwork, nodesByChans):
             begin += 1
 
         chan = currNode.channels[chani]
+        otherNode = currNode.getOtherNode(chan)
 
         if chan.value is None:
-            if chani < rankingSize:  # we choose based on linear reg
+            if chani < rankingSize: #and len(currNode.channels) >= rankingSize: # and currNode.unallocated > 0 and otherNode.unallocated > 0: 
                 per = capPercent[chani]
-                alloc = currNode.allocation
-                newCap = round(per * alloc)
+                newCap = round(per * currNode.allocation)
                 chan.value = newCap
-                otherNode = currNode.getOtherNode(chan)
                 otherNode.unallocated -= newCap
                 otherNode.value += newCap
                 currNode.unallocated -= newCap
                 currNode.value += newCap
             else:  # we finish off node by randomly allocating rest of channels with even split of rest of capacity
-                otherNode = currNode.getOtherNode(chan)
                 otherUnalloc = otherNode.unallocated
                 unalloc = currNode.unallocated
                 chansLeft = currNode.channelCount - chani
-                avgCap = unalloc / chansLeft
-                if unalloc <= 0 or otherUnalloc <= 0:
-                    chan.value = defaultMinSatoshis
-                    otherNode.unallocated -= defaultMinSatoshis
-                    otherNode.value += defaultMinSatoshis
-                    currNode.unallocated -= defaultMinSatoshis
-                    currNode.value += defaultMinSatoshis
-                elif otherUnalloc - avgCap <= 0:
-                    chan.value = otherUnalloc
-                    otherNode.unallocated -= otherUnalloc
-                    otherNode.value += otherUnalloc
-                    currNode.unallocated -= otherUnalloc
-                    currNode.value += otherUnalloc
+                avgCap = int(round(unalloc / chansLeft))
+                if unalloc <= defaultMinSatoshis or otherUnalloc <= defaultMinSatoshis or avgCap < defaultMinSatoshis or otherUnalloc - avgCap < defaultMinSatoshis:
+                    r = random.randint(1, defaultMinSatoshis)
+                    chan.value = r
+                    otherNode.unallocated -= r
+                    otherNode.value += r
+                    currNode.unallocated -= r
+                    currNode.value += r
                 else:
                     chan.value = avgCap
                     otherNode.unallocated -= avgCap
@@ -339,17 +341,6 @@ def channelCapacities(targetNetwork, nodesByChans):
 
 
 
-def scaleCapacities(config, channels, nodes):
-    """
-    scale capacities according to the units in config.capacities.
-    :param config: config
-    :param channels: channels objs
-    """
-    div = utility.getScaleDiv(config.scalingUnits)
-    for c in channels:
-        c.value = utility.scaleSatoshis(c.value, div)
-    for n in nodes:
-        n.value = utility.scaleSatoshis(n.value, div)
 
 def buildNodeDetails(config, targetNetwork, network=None):
     """

@@ -11,6 +11,7 @@ from multiprocessing import Pool
 
 
 def buildChain(config, network):
+    scaleCapacities(config, network.channels, network.getNodes())
     for c in network.channels:
         c.scid.tx = 0
         c.scid.height = 0
@@ -30,6 +31,19 @@ def buildChain(config, network):
     objRpcB = setRealScids(config, objRpcB, dictTxidToChans, chanIdToChan, spendHashes)
     killBitcoind()
     return network
+
+
+def scaleCapacities(config, channels, nodes):
+    """
+    scale capacities according to the units in config.capacities.
+    :param config: config
+    :param channels: channels objs
+    """
+    div = utility.getScaleDiv(config.scalingUnits)
+    for c in channels:
+        c.value = utility.scaleSatoshis(c.value, div)
+    for n in nodes:
+        n.value = utility.scaleSatoshis(n.value, div)
 
 
 def blocksCoinbaseSpends(config, channels):
