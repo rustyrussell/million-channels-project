@@ -1,11 +1,11 @@
 python-bitcoinlib == 0.10.1
 spruned == 0.0.4b4
-pylightning
-sortedcontainers
-matplotlib
-scipy
+pylightning==0.0.6
+sortedcontainers==2.1.0
+matplotlib==3.0.2
+scipy==1.2.0
 python-igraph
-pycairo
-ecdsa
-base58
-chainside-btcpy
+pycairo==1.18.0
+ecdsa==0.13
+base58==1.0.3
+chainside-btcpy==0.6.4
