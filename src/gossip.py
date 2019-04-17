@@ -13,6 +13,8 @@ def gossip(config, network, gossipSequence):
     Each channel has 1 channel annoucement and 2 channel updates. Keys and scids are determined determinisically based on node id.
     """
     utility.setRandSeed(config.randSeed)
+    for n in network.getNodes():
+        n.channels = []
     initGossip(config.gossipFile, config.scidSatoshisFile, len(network.channels), config.gossipStore)
     t2 = time.time()
     generateAllGossip(network, gossipSequence, config.gossipFile, config.scidSatoshisFile, config.writeNodes, config.processNum, config.gossipStore)

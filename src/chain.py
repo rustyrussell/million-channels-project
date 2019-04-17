@@ -12,6 +12,8 @@ from multiprocessing import Pool
 
 def buildChain(config, network):
     scaleCapacities(config, network.channels, network.getNodes())
+    for n in network.getNodes():
+        n.channels = []
     for c in network.channels:
         c.scid.tx = 0
         c.scid.height = 0
