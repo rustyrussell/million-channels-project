@@ -236,10 +236,10 @@ def createChannelUpdate(channel, node, u, a):
     mFlags = ""
     cFlags = ""
     if node.nodeCompPub == a.id1:
-        mFlags = "01"
+        mFlags = "00"
         cFlags = "00"
     elif node.nodeCompPub == a.id2:
-        mFlags = "81"
+        mFlags = "00"
         cFlags = "01"
 
     u.setmFlags(bytearray().fromhex(mFlags))

@@ -250,11 +250,13 @@ def nodeCapacityDistribution(config, network, targetNetwork):
     params = targetNetwork.analysis.nodeCapacityInNetPowLawParams[0]
     interval = targetNetwork.analysis.nodeCapacityInNetPowLawParams[2]
     scaledMaxFunding = config.maxFunding/interval
+    #defaultMinSatoshis = 1000000
+    #scaledMinFunding = defaultMinSatoshis / interval 
     x = powerLawReg.randToPowerLaw(params, bound=(0, scaledMaxFunding))
     while len(capList) < nodeNum:
         # x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain.
         # We do this because coinbase outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
-        if x > scaledMaxFunding or (x > (config.coinbaseReward-((config.fee))/interval)) or x == 0:
+        if (x > ((config.coinbaseReward-config.fee)/interval)) or x == 0:
             continue
         else:
             satoshis = x * interval   #back to full satoshis
@@ -284,7 +286,6 @@ def swapFunc(prob, lst):
         lst[r1] = lst[r2]
         lst[r2] = temp
     return lst
-    
 
 
 def channelCapacities(targetNetwork, nodesByChans):
@@ -294,7 +295,6 @@ def channelCapacities(targetNetwork, nodesByChans):
     begin = 0
     nodei = 0
     chani = 0  # index of channel in node. The ones before it already have capacities
-    defaultMinSatoshis = 1000
     while begin < nodeNum:  # while there are still nodes that have channels left to create
         currNode = nodesByChans[nodei]
 
@@ -304,34 +304,20 @@ def channelCapacities(targetNetwork, nodesByChans):
 
         chan = currNode.channels[chani]
         otherNode = currNode.getOtherNode(chan)
-
+      
         if chan.value is None:
-            if chani < rankingSize: #and len(currNode.channels) >= rankingSize: # and currNode.unallocated > 0 and otherNode.unallocated > 0: 
+            if chani < rankingSize:
                 per = capPercent[chani]
-                newCap = round(per * currNode.allocation)
+                newCap = int(round(per * currNode.allocation))
                 chan.value = newCap
-                otherNode.unallocated -= newCap
                 otherNode.value += newCap
-                currNode.unallocated -= newCap
                 currNode.value += newCap
-            else:  # we finish off node by randomly allocating rest of channels with even split of rest of capacity
-                otherUnalloc = otherNode.unallocated
-                unalloc = currNode.unallocated
-                chansLeft = currNode.channelCount - chani
-                avgCap = int(round(unalloc / chansLeft))
-                if unalloc <= defaultMinSatoshis or otherUnalloc <= defaultMinSatoshis or avgCap < defaultMinSatoshis or otherUnalloc - avgCap < defaultMinSatoshis:
-                    r = random.randint(1, defaultMinSatoshis)
-                    chan.value = r
-                    otherNode.unallocated -= r
-                    otherNode.value += r
-                    currNode.unallocated -= r
-                    currNode.value += r
-                else:
-                    chan.value = avgCap
-                    otherNode.unallocated -= avgCap
-                    otherNode.value += avgCap
-                    currNode.unallocated -= avgCap
-                    currNode.value += avgCap
+            else:
+                alloc = currNode.allocation
+                cap = int(round(alloc / currNode.channelCount))
+                currNode.value += cap
+                otherNode.value += cap
+                chan.value = cap
 
         if nodei == nodeNum - 1:
             nodei = begin

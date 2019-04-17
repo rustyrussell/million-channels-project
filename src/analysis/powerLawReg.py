@@ -152,7 +152,7 @@ def powerLawRegressionParam(x, y):
     Performs a regression analysis on power law function
     :return:
     """
-    alpha, covariance = optimize.curve_fit(powerLawFunc, x, y)
+    alpha, covariance = optimize.curve_fit(powerLawFunc, x, y, maxfev=1000)
     return alpha, covariance
 
 

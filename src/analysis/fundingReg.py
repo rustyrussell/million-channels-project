@@ -73,7 +73,7 @@ def nodeCapacityInNetPowLaw(scalingUnits, nodes, graph=False):
     for n in nodes:
         v = n.value
         if v > 0:
-            scaledV = int(v/interval)
+            scaledV = int(round(v/interval))
             yfreq += [0 for i in range(len(yfreq), scaledV+1)]
             yfreq[scaledV] += 1
     ys = yfreq
@@ -93,12 +93,14 @@ def nodeCapacityInNetPowLaw(scalingUnits, nodes, graph=False):
 
     
     yProb = powerLawReg.freqDataToProbData(ys, sum(ys))
+    g.simpleFreqPlot(xs, yProb)
+    plt.show()
     params, covariance = powerLawReg.powerLawRegressionParam(xs, yProb)
 
     if graph:
         fig, ax = plt.subplots()
         g.simpleFreqPlot(xs, yProb)
-        bounds = (-6, max(xs), 1)
+        bounds = (0, max(xs), 1)
         xaxis = "capacity / 10^6 satoshis ; slide = " + str(slide)
         yaxis = "prob"
         g.plotFunction(powerLawReg.powerLawFunc, params, bounds, xaxis, yaxis)
