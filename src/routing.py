@@ -1,7 +1,7 @@
 from common import crypto, utility
 import sys
 from bitcoin import SelectParams
-from lightning import LightningRpc
+from lightning import LightningRpc, RpcError 
 from config import *
 from random import randint
 import time
@@ -10,20 +10,29 @@ def main():
     SelectParams("regtest")
     argv = sys.argv    #TODO: add argparse 
     if argv[1] == "route": #input a source and destination
-        #network, gs = utility.loadNetwork(nodeSaveFile, channelSaveFile)
+        network, gs = utility.loadNetwork(nodesFile, channelSaveFile)
         if argv[2] == "i":
             si = int(argv[3])  #source
             di = int(argv[4])  #destination
             sPub = getPubKey(si)
             dPub = getPubKey(di)
+            print(sPub, dPub)
         else:
             sPub = argv[2]  # source
             dPub = argv[3]  # destination
 
-        routeL = getRouteLightning(sPub, dPub)
-        printLightningRoute(routeL, sPub)
-        #routesI = getRouteigraph(si, di, network.igraph)
-        #printigraphRoutes(routesI)
+        fail = False
+        try:
+            routeL = getRouteLightning(sPub, dPub)
+        except RpcError:
+            fail = True
+
+        if not fail:
+            printLightningRoute(routeL, sPub)
+        else:
+            print("failed. here is igraph route")
+            routesI = getRouteigraph(si, di, network.igraph)
+            printigraphRoutes(routesI)
 
     elif argv[1] == "avg":  #benchmark shortest routes and find the average
         if len(argv) == 4:  
@@ -52,23 +61,39 @@ def main():
         print("avg time:", avgTime)
 
     elif argv[1] == "all":  #benchmark shortest routes and find the average
-        if len(argv) == 3:  
-            nodeNum = int(argv[2])
+        if len(argv) == 4:  
+            lower = int(argv[2])
+            upper = int(argv[3])
         else:
             raise ValueError("need more arguments")
+        ifailures = 0 
+        failures = []
         totTime = 0
         totHops = 0
         pubkeylist = []
-        for i in range(0, nodeNum):
+        for i in range(lower, upper+1):
             pubkeylist += [getPubKey(i)]
     
-        for i in range(0, nodeNum):
+        for i in range(0, len(pubkeylist)):
             sPub = pubkeylist[i]
-            for j in range(i, nodeNum):
+            for j in range(i+1, len(pubkeylist)):
                 if i != j:
                     dPub = pubkeylist[j]
-                    routeL = getRouteLightning(sPub, dPub)
+                    try:
+                        routeL = getRouteLightning(sPub, dPub)
+                    except RpcError:
+                        ifailures += 1
+                        failures += [(i, j)]
             print("done with", i)
+
+        if ifailures > 0:
+            network, gs = utility.loadNetwork(nodesFile, channelSaveFile)
+      
+        for f in failures:
+            print("cannot find", f[0], "-->", f[1])
+            routesI = getRouteigraph(f[0], f[1], network.igraph)
+            printigraphRoutes(routesI)
+            
 
 def getPubKey(nodeid):
     pub = bytearray(crypto.compPubKey(crypto.makeSinglePrivKeyNodeId(nodeid))).hex()
@@ -77,7 +102,7 @@ def getPubKey(nodeid):
 
 def getRouteLightning(source, dest):
     lrpc = LightningRpc(lightningrpc)
-    route = lrpc.getroute(dest, 10000, 20, fromid=source)
+    route = lrpc.getroute(dest, 1, 0, fromid=source)
     return route
 
 

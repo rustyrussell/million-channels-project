@@ -214,9 +214,9 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     u.setHTLCMSat(htlcMSat)
     u.setFeeBaseMSat(feeBaseMSat)
     u.setFeePropMill(feePropMill)
-    value = int(channel.value)
-    bValue = bytearray(value.to_bytes(8, byteorder="big"))
-    u.setHTLCMaxMSat(bValue)
+    #value = int(channel.value)
+    #bValue = bytearray(value.to_bytes(8, byteorder="big"))
+    #u.setHTLCMaxMSat(bValue)
 
     u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)
@@ -378,7 +378,7 @@ bMsglenAFull = bytearray(fulllenA.to_bytes(4, byteorder="big"))
 halfWriteA = bMsglenAFull + WIRE_GOSSIP_STORE_CHANNEL_ANNOUNCEMENT + bMsglenA
 
 #update fields
-msglenU = 138
+msglenU = 130
 bMsglenU = bytearray(msglenU.to_bytes(2, byteorder="big"))
 WIRE_GOSSIP_STORE_CHANNEL_UPDATE = bytearray().fromhex("1001")
 fulllenU = len(WIRE_GOSSIP_STORE_CHANNEL_UPDATE) + len(bMsglenU) + msglenU  # remember, we don't have checksum and we don't count gossipVersion

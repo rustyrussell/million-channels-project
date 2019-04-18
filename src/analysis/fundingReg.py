@@ -93,14 +93,12 @@ def nodeCapacityInNetPowLaw(scalingUnits, nodes, graph=False):
 
     
     yProb = powerLawReg.freqDataToProbData(ys, sum(ys))
-    g.simpleFreqPlot(xs, yProb)
-    plt.show()
     params, covariance = powerLawReg.powerLawRegressionParam(xs, yProb)
 
     if graph:
         fig, ax = plt.subplots()
         g.simpleFreqPlot(xs, yProb)
-        bounds = (0, max(xs), 1)
+        bounds = (1, max(xs), 1)
         xaxis = "capacity / 10^6 satoshis ; slide = " + str(slide)
         yaxis = "prob"
         g.plotFunction(powerLawReg.powerLawFunc, params, bounds, xaxis, yaxis)
