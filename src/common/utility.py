@@ -192,10 +192,10 @@ def getScaleDiv(scalingUnits):
     return div
 
 
-def scaleSatoshis(satoshis, div):
+def scaleSatoshis(satoshis, div, minimum):
     scaledSatoshis = int(satoshis // div)  # we have to scale it so that regtest has enough bitcoin to fund because of low halving interval
-    if scaledSatoshis == 0:
-        scaledSatoshis = 1
+    if scaledSatoshis < minimum:
+        scaledSatoshis = minium
     return scaledSatoshis
 
 

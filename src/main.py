@@ -108,7 +108,6 @@ def parse():
     parse.add_argument("-p", type=int)
     parse.add_argument("--maxChannels", type=int)
     parse.add_argument("--maxFunding", type=int)
-    parse.add_argument("--defaultValue", type=int)
     parse.add_argument("--randSeed", type=int)
     parse.add_argument("--saveDir", type=str, required=False)
     parse.add_argument("--listchannelsFile", type=str)

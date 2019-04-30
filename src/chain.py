@@ -43,9 +43,9 @@ def scaleCapacities(config, channels, nodes):
     """
     div = utility.getScaleDiv(config.scalingUnits)
     for c in channels:
-        c.value = utility.scaleSatoshis(c.value, div)
+        c.value = utility.scaleSatoshis(c.value, div, config.onchainSatoshiMinimum)
     for n in nodes:
-        n.value = utility.scaleSatoshis(n.value, div)
+        n.value = utility.scaleSatoshis(n.value, div, config.onchainSatoshiMinimum)
 
 
 def blocksCoinbaseSpends(config, channels):

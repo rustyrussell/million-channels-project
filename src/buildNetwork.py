@@ -263,7 +263,6 @@ def nodeCapacityDistribution(config, network, targetNetwork):
             bisect.insort_left(capList, satoshis)
         x = powerLawReg.randToPowerLaw(params, bound=(0, scaledMaxFunding))
 
-    #TODO do swapping in list to make it more random but for the most part sorted from greatest to least
     nodesByChans = network.getNodes().copy()
     nodesByChans.sort(key=utility.sortByChannelCount, reverse=False)
     #sort network in reverse order by number of channels
