@@ -151,6 +151,8 @@ def overrideConfig(args, config):
         config.randSeed = args.randSeed
     if args.listchannelsFile != None:
         config.listchannelsFile = args.listchannelsFile
+    if args.listnodesFile != None:
+        config.listnodesFile = args.listnodesFile
     if args.channelFile != None:
         config.channelFile = args.channelFile
     if args.scidSatoshisFile != None:

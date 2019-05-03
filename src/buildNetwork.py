@@ -50,11 +50,43 @@ def initTargetNetwork(config, graph):
     return targetNetwork
 
 
+def nodeDistribution(config, network):
+    """
+    Create a node distribution based on power law curve with params measured from regression analysis
+    :param config: config
+    :param network: network
+    :return: node list
+    """
+    channelsToCreate = 2 * config.channelNum
+
+    params = network.analysis.channelDistPowLawParams[0]
+    nodes = []
+    nodeidCounter = 0
+    totalChannels = 0
+    maxChannelsPerNode = config.maxChannels
+    x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
+    while x > maxChannelsPerNode or x + totalChannels < channelsToCreate:
+        x = round(x, 0)
+        if x == 0 or x > maxChannelsPerNode:
+            pass
+        else:
+            totalChannels += x
+            n = networkClasses.Node(nodeidCounter, maxChannels=x)
+            nodes += [n]
+            nodeidCounter += 1
+        x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
+
+    return nodes
+
+
 def buildEdges(network):
     """
-    build network by creating all channels for nodes from largest max channels to smallest max channels.
+    build network at random by creating all channels for nodes from largest max channels to smallest max channels.
+    Guarantee the network is completely connected by the end. 
     No duplicate channels are created between nodes.
+    Gossip sequence is used to make load balancing in gossip.py more efficient
     :param network: network
+    :return: gossip sequence
     """
     # connect first node to second node (to bootstrap network)
     if len(network.getNodes()) < 1:
@@ -166,7 +198,6 @@ def buildEdges(network):
     network.disconnNodes = []
     network.unfullNodes = []
 
-
     return gossipSequence
 
 
@@ -176,7 +207,6 @@ def tempScids(config, network):
     Creates scids by calculating the starting height after coinbase blocks and spending coinbase blocks
     :param config: config
     :param network: network
-    :return:
     """
     scidHeight = 1
     scidTx = 1
@@ -186,9 +216,6 @@ def tempScids(config, network):
         scidHeight, scidTx = incrementScid(config.maxTxPerBlock, scidHeight, scidTx)
 
 def incrementScid(maxFundingTxPerBlock, height, tx):
-    """
-    this will change in the future when 
-    """
     if tx == maxFundingTxPerBlock:
         tx = 1
         height += 1
@@ -197,36 +224,6 @@ def incrementScid(maxFundingTxPerBlock, height, tx):
 
     return height, tx
 
-
-def nodeDistribution(config, network):
-    """
-    There are two ways to choose the distribution of nodes. We can use randomness based on randint and the prob curve
-    or we can create nodes exactly with the percentage of the prob curve.
-    :param finalNumChannels: channels to create in the network
-    :param randSeed: rand seedchannel
-    :param randomDist: if True, we generate with randint. Otherwise generate proportionally.
-    :return: node list
-    """
-    channelsToCreate = 2 * config.channelNum
-
-    params = network.analysis.channelDistPowLawParams[0]
-    nodes = []
-    nodeidCounter = 0
-    totalChannels = 0
-    maxChannelsPerNode = config.maxChannels
-    x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
-    while x > maxChannelsPerNode or x + totalChannels < channelsToCreate:
-        x = round(x, 0)
-        if x == 0 or x > maxChannelsPerNode:
-            pass
-        else:
-            totalChannels += x
-            n = networkClasses.Node(nodeidCounter, maxChannels=x)
-            nodes += [n]
-            nodeidCounter += 1
-        x = powerLawReg.randToPowerLaw(params, bound=(0, maxChannelsPerNode))
-
-    return nodes
 
 
 def capacityDistribution(config, network, targetNetwork):
@@ -241,7 +238,14 @@ def capacityDistribution(config, network, targetNetwork):
     nodesByChans = nodeCapacityDistribution(config, network, targetNetwork)
     channelCapacities(targetNetwork, nodesByChans)
 
+
 def nodeCapacityDistribution(config, network, targetNetwork):
+    """
+    Set capacity distribution of the network such that total capacity of nodes is a power law which is observed in the real network
+    :param config: config
+    :param network: network
+    :param target network: snapshot of lightning network
+    """
 
     nodeNum = len(network.getNodes())
     #start by generating a bunch of random capacities by generating random probs, and putting them in invert func
@@ -273,21 +277,19 @@ def nodeCapacityDistribution(config, network, targetNetwork):
         currNode.setAllocation(currCap)
         currNode.channels.sort(key=currNode.getValueLeftOfOtherNode, reverse=True)
         nodes = swapFunc(.25, currNode.channels)   # a really gross hardcoded non-generalizable hack to help get the distribution correct. 
+
     return nodesByChans
 
 
-def swapFunc(prob, lst):
-    swaps = int(round(prob * len(lst)))
-    for i in range(0, swaps):
-        r1 = random.randint(0, swaps-1)
-        r2 = random.randint(0, swaps-1)
-        temp = lst[r1]
-        lst[r1] = lst[r2]
-        lst[r2] = temp
-    return lst
-
-
 def channelCapacities(targetNetwork, nodesByChans):
+    """
+    Set capacities of specific channels so that 2 properties are met: 
+    (1) positive relationship between (other_node_cap-channel_cap)-->(channel_cap/node_cap) as observed in the snapshot/target network
+    (2) power law between capacity distribution inside node as observed in the network
+    :param targetNetwork: snapshot of lightning network
+    :param network: network
+    """
+
     nodeNum = len(nodesByChans)
     capPercent = targetNetwork.analysis.channelCapacityInNodeParams[1][2]
     rankingSize = targetNetwork.analysis.channelCapacityInNodeParams[2]
@@ -325,9 +327,18 @@ def channelCapacities(targetNetwork, nodesByChans):
             nodei += 1
 
 
+def swapFunc(prob, lst):
+    swaps = int(round(prob * len(lst)))
+    for i in range(0, swaps):
+        r1 = random.randint(0, swaps-1)
+        r2 = random.randint(0, swaps-1)
+        temp = lst[r1]
+        lst[r1] = lst[r2]
+        lst[r2] = temp
+    return lst
 
 
-def buildNodeDetails(config, targetNetwork, network=None):
+def buildNodeDetails(config, targetNetwork, network):
     """
     Set addreses of nodes and set if the nodes will announce themselves
     :param targetNetwork: target
