@@ -6,7 +6,7 @@ from analysis import powerLawReg
 def channelCapacityInNode(nodes, graph=False, powerReg=False):
     #looking at corr value of otherNode in channel and channel capacity
     interval = 100000
-    rankingSize = 6
+    rankingSize = 10
     ysOther = []
     ysPer = []
     perList = [[] for i in range(0, rankingSize)]
@@ -31,18 +31,21 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
         ysOther += [int(round(sum(connList[i])/(len(connList[i])*interval)))]
         ysPer += [sum(perList[i])/len(perList[i])]
 
-    paramsOther, covarianceOther = optimize.curve_fit(linearFunc, xs, ysOther)
+    ysOtherRev = ysOther.copy()
+    ysOtherRev.reverse()
+    paramsOther, covarianceOther = optimize.curve_fit(linearFunc, xs, ysOtherRev)
     paramsPer, covariancePer = powerLawReg.powerLawRegressionParam(xs, ysPer)
 
     if graph:
         #plot powerlaw
+        plt.rcParams.update({'font.size': 14})
         fig, ax = plt.subplots()
         bounds = (0, rankingSize, 1)
         g.simpleFreqPlot(xs, ysPer)
-        xaxis = "channel in node ranked by capacity from greatest to least, maximum " + str(rankingSize) + " channels"
-        yaxis = "percent of total node capacity"
+        xaxis = "channels in node (greatest capacity to least)"
+        yaxis = "% of node capacity"
         g.plotFunction(powerLawReg.powerLawFunc, paramsPer, bounds, xaxis, yaxis)
-        plt.title("channels by percentage of total capacity in node")
+        plt.title("channels by % of node cap. (nodes >= " + str(rankingSize) + " channels)")
         props = dict(boxstyle="round", facecolor="wheat", alpha=.5)
         text = r'$\alpha$' + " = " + str(paramsPer[0])[0:5] + "\n" + r'$\beta$' + " = " + str(paramsPer[1])[0:5] + "\n" + "c = " + str(paramsPer[2])[0:5] 
         ax.text(.75, .95, text, fontsize=14, verticalalignment="top", transform=ax.transAxes, bbox=props)
@@ -52,14 +55,14 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
         #plot linear
         fig, ax = plt.subplots()
         bounds = (0, rankingSize, 1)
-        g.simpleFreqPlot(xs, ysOther)
-        xaxis = "channel in node ranked by capacity from greatest to least, maximum " + str(rankingSize) + " channels"
-        yaxis = "total capacity of other node in channel - capacity in channel"
+        g.simpleFreqPlot(xs, ysOtherRev)
+        xaxis = "channel in node (least capacity to greatest)"
+        yaxis = "cap. of connected node - chan. cap."
         g.plotFunction(linearFunc, paramsOther, bounds, xaxis, yaxis)
-        plt.title("relationship between capacity of channel C and total capacity of other node - C")
+        plt.title("chan. cap. to connected cap. (nodes >= " + str(rankingSize) + " channels)")
         props = dict(boxstyle="round", facecolor="wheat", alpha=.5)
-        text = r'$\alpha$' + " = " + str(paramsOther[0]) + "\n" + r'$\beta$' + " = " + str(paramsOther[1]) 
-        ax.text(.40, .95, text, fontsize=14, verticalalignment="top", transform=ax.transAxes, bbox=props)
+        text = r'$\alpha$' + " = " + str(int(round(paramsOther[0]))) + "\n" + r'$\beta$' + " = " + str(int(round(paramsOther[1]))) 
+        ax.text(.10, .95, text, fontsize=14, verticalalignment="top", transform=ax.transAxes, bbox=props)
         plt.autoscale()
         plt.show()
 
@@ -96,11 +99,12 @@ def nodeCapacityInNetPowLaw(scalingUnits, nodes, graph=False):
     params, covariance = powerLawReg.powerLawRegressionParam(xs, yProb)
 
     if graph:
+        plt.rcParams.update({'font.size': 14})
         fig, ax = plt.subplots()
         g.simpleFreqPlot(xs, yProb)
         bounds = (1, max(xs), 1)
-        xaxis = "capacity / 10^6 satoshis ; slide = " + str(slide)
-        yaxis = "prob"
+        xaxis = "capacity * 10^-6 satoshis (smoothed distribution)"
+        yaxis = "probability"
         g.plotFunction(powerLawReg.powerLawFunc, params, bounds, xaxis, yaxis)
         plt.title("prob. dist. of total capacity of channels of a node")
         props = dict(boxstyle="round", facecolor="wheat", alpha=.5)

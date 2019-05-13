@@ -29,11 +29,12 @@ def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwor
         params, covariance = powerLawRegressionParam(x, yProb)
         params = [params[0], params[1], params[2]]
     if graph:    #for plotting power law curve from experiment against new nodes scatterplot (called in build network)
+        plt.rcParams.update({'font.size': 14})
         fig, ax = plt.subplots()
         bounds = (1, max(x), 1)
         g.simpleFreqPlot(x, yProb, plot=plt)
         g.plotFunction(powerLawFunc, params, bounds, xaxisDescription="channels", yaxisDescription="probability", plot=plt)
-        plt.title("prob. dist. of a node with X amount of channels. Power Law fitted to data.")
+        plt.title("prob. dist. of channels across nodes.")
         props = dict(boxstyle="round", facecolor="wheat", alpha=.5)
         text = r'$\alpha$' + " = " + str(params[0])[0:5] + "\n" + r'$\beta$' + " = " + str(params[1])[0:5] + "\n" + "c = " + str(params[2])[0:5] 
         ax.text(.75, .95, text, fontsize=14, verticalalignment="top", transform=ax.transAxes, bbox=props)
