@@ -33,14 +33,19 @@ This network can be used to test routing algorithms and optimize lightning imple
 ### Generating network or gossip from scratch
 
 1. main.py can create the network, regtest chain, or the gossip messages. 
-   Running main.py with --build  builds and saves the network. Add --analyze pretty graphs.
-   Running main.py with --chain generates the chain.
-   Running main.py with --gossip generates gossip (Note: running gossip without chain will lead to incorrect scids).
-   for example: 
+    Running main.py with --build  builds and saves the network. Add --analyze for pretty graphs and --draw for network graph.
+    
+    Running main.py with --chain generates the chain.
+    
+    Running main.py with --gossip generates gossip (Note: running gossip without chain will lead to incorrect scids).
+    
+    for example: 
 
     generating 1M channel network: 
+
    `python3 main.py --build --chain --gossip --name 1M --channels 1000000 --maxChannels 10000`
     generating 100K channels network: 
+
    `python3 main.py --build --chain --gossip --name 100K --channels 100000 --maxChannels 1000`
 
 2. building the network consists of analyzing a provided network and scaling it up. 
