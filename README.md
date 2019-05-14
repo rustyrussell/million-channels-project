@@ -1,6 +1,6 @@
 # million-channels-project
 The goal of this project is to create a large test network (>1M channels) with an accurate topology extrapolated from the current topology. 
-This network will be used for testing routing algorithms and channel syncing.
+This network can be used to test routing algorithms and optimize lightning implementations.
 
 ### Instructions on how to run without regenerating the network:
 
@@ -13,19 +13,17 @@ This network will be used for testing routing algorithms and channel syncing.
 
        `mv bitcoin ~\.bitcoin\1M` 
 
-3. Clone this fork and switch to guilt/store-load-optimize branch
+3. Create gossip_store using gossip
 
-       `git clone https://github.com/rustyrussell/lightning.git`
-       
-       `cd lightning`
-       
-       `git checkout guilt/store-load-optimize`
+       `cd c-lightning`
        
        `./configure --enable-developer && make`
 
        `cd devtools`
        
-       `./create-gossipstore --verbose 100000 -i /path/to/gossip -o ~/path/to/.lightning-datadir`
+       run the following command with the downloaded gossip files:
+       `./create-gossipstore --verbose 100000 -i /path/to/gossip/1M.gossip -o ~/path/to/.lightning-datadir --csv /path/to/gossip/1M.scidSatoshis.csv`
+       
 
 4. Set fields in config.py that are currently set to /your/path/here (or pass in cmdline args to set them)
 
@@ -35,9 +33,15 @@ This network will be used for testing routing algorithms and channel syncing.
 ### Generating network or gossip from scratch
 
 1. main.py can create the network, regtest chain, or the gossip messages. 
-   Running main.py with --build  builds and saves the network. 
+   Running main.py with --build  builds and saves the network. Add --analyze pretty graphs.
    Running main.py with --chain generates the chain.
    Running main.py with --gossip generates gossip (Note: running gossip without chain will lead to incorrect scids).
+   for example: 
+
+    generating 1M channel network: 
+   `python3 main.py --build --chain --gossip --name 1M --channels 1000000 --maxChannels 10000`
+    generating 100K channels network: 
+   `python3 main.py --build --chain --gossip --name 100K --channels 100000 --maxChannels 1000`
 
 2. building the network consists of analyzing a provided network and scaling it up. 
    Therefore, you need your own network data and set analysisListChannelsFile 
