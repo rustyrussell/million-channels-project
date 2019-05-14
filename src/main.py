@@ -41,19 +41,19 @@ def main():
         t1 = time.time()
         print("build network complete in", t1-t0)
         network.printNetworkStats()
+        if args.analyze:
+            network.analysis.analyze(True)
+            print("power log: c*((x+b)^-a)")
+            print("target network channel prob. dist. power law:", targetNetwork.analysis.channelDistPowLawParams[0])
+            print("target network node capacity prob. dist. power law:", targetNetwork.analysis.nodeCapacityInNetPowLawParams[0])
+            print("target network channel capacity in node", targetNetwork.analysis.channelCapacityInNodeParams[1][0])
+            print("target network linear params:", targetNetwork.analysis.channelCapacityInNodeParams[0][0])
+            print("new network power law:", network.analysis.channelDistPowLawParams[0])
+            print("new network node capacity prob. dist. power law:", network.analysis.nodeCapacityInNetPowLawParams[0])
+            print("new network channel capacity in node", network.analysis.channelCapacityInNodeParams[1][0])
+            print("new network linear params:", network.analysis.channelCapacityInNodeParams[0][0])
     else:
         network, gossipSequence = utility.loadNetwork(config.nodesFile, config.channelsFile)
-    if args.analyze:
-        print("power log: c*((x+b)^-a)")
-        print("target network channel prob. dist. power law:", targetNetwork.analysis.channelDistPowLawParams[0])
-        print("target network node capacity prob. dist. power law:", targetNetwork.analysis.nodeCapacityInNetPowLawParams[0])
-        print("target network channel capacity in node", targetNetwork.analysis.channelCapacityInNodeParams[1][0])
-        print("target network linear params:", targetNetwork.analysis.channelCapacityInNodeParams[0][0])
-        network.analysis.analyze(True)
-        print("new network power law:", network.analysis.channelDistPowLawParams[0])
-        print("new network node capacity prob. dist. power law:", network.analysis.nodeCapacityInNetPowLawParams[0])
-        print("new network channel capacity in node", network.analysis.channelCapacityInNodeParams[1][0])
-        print("new network linear params:", network.analysis.channelCapacityInNodeParams[0][0])
 
     if args.draw:
         graph.igraphDraw(network.igraph)

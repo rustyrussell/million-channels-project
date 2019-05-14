@@ -42,7 +42,7 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
         fig, ax = plt.subplots()
         bounds = (0, rankingSize, 1)
         g.simpleFreqPlot(xs, ysPer)
-        xaxis = "channels in node (greatest capacity to least)"
+        xaxis = "channel in node by capacity (top " + str(rankingSize) + " greatest to least)"
         yaxis = "% of node capacity"
         g.plotFunction(powerLawReg.powerLawFunc, paramsPer, bounds, xaxis, yaxis)
         plt.title("channels by % of node cap. (nodes >= " + str(rankingSize) + " channels)")
@@ -56,7 +56,7 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
         fig, ax = plt.subplots()
         bounds = (0, rankingSize, 1)
         g.simpleFreqPlot(xs, ysOtherRev)
-        xaxis = "channel in node (least capacity to greatest)"
+        xaxis = "channel in node by capacity (top " + str(rankingSize) + " least to greatest)"
         yaxis = "cap. of connected node - chan. cap."
         g.plotFunction(linearFunc, paramsOther, bounds, xaxis, yaxis)
         plt.title("chan. cap. to connected cap. (nodes >= " + str(rankingSize) + " channels)")
