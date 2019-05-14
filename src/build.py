@@ -5,8 +5,7 @@ Builds the network with a backtracking algorithm and network measures defined in
 """
 
 import random
-from common import networkClasses
-from common import utility
+from common import networkClasses, utility, constants
 from analysis import powerLawReg
 from numpy.random import shuffle
 import bisect
@@ -18,7 +17,7 @@ def buildNetwork(config, targetNetwork):
     initBuild(config, targetNetwork)
     newNodes = nodeDistribution(config, targetNetwork)
     # create nodes
-    network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes, scalingUnits=config.scalingUnits)
+    network = networkClasses.IncompleteNetwork(fullConnNodes=[], disconnNodes=newNodes, scalingUnits=constants.scalingUnits)
     # create channels
     gossipSequence = buildEdges(network)
     tempScids(config, network)
@@ -43,7 +42,7 @@ def initTargetNetwork(config, graph):
     fp = open(config.listchannelsFile, encoding="utf-8")
     jn = utility.loadJson(fp)
     targetNodes, targetChannels = utility.listchannelsJsonToObject(jn)
-    targetNetwork = networkClasses.Network(fullConnNodes=targetNodes, scalingUnits=config.scalingUnits)
+    targetNetwork = networkClasses.Network(fullConnNodes=targetNodes, scalingUnits=constants.scalingUnits)
     targetNetwork.channels = targetChannels
     #analyze snapshot of network
     targetNetwork.analysis.analyze(graph)
@@ -213,7 +212,7 @@ def tempScids(config, network):
     for i in range(0, len(network.channels)):
         chan = network.channels[i]
         chan.setScid(networkClasses.Scid(scidHeight, scidTx))
-        scidHeight, scidTx = incrementScid(config.maxTxPerBlock, scidHeight, scidTx)
+        scidHeight, scidTx = incrementScid(constants.maxTxPerBlock, scidHeight, scidTx)
 
 def incrementScid(maxFundingTxPerBlock, height, tx):
     if tx == maxFundingTxPerBlock:
@@ -230,7 +229,7 @@ def capacityDistribution(config, network, targetNetwork):
     """
     Set satoshis of each channel.
     Since regtest has low halving (every 150 blocks) the capacities have to be smaller than in the normal network.
-    View the capacities as having the denomination of the units defined in config.scalingUnits, rather than satoshis
+    View the capacities as having the denomination of the units defined in constants.scalingUnits, rather than satoshis
     :param config: config
     :param network: network
     :param targetNetwork: target network
@@ -260,7 +259,7 @@ def nodeCapacityDistribution(config, network, targetNetwork):
     while len(capList) < nodeNum:
         # x cannot be greater than reward taking into acount the fees that will be spent in the transactions on chain.
         # We do this because coinbase outputs -> funding txs so max size of channel will be 50 BTC, which is a resonable maximum
-        if (x > ((config.coinbaseReward-config.fee)/interval)) or x == 0:
+        if (x > ((constants.coinbaseReward-config.fee)/interval)) or x == 0:
             continue
         else:
             satoshis = x * interval   #back to full satoshis

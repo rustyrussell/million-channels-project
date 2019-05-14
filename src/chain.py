@@ -4,7 +4,7 @@ from btcpy.structs.sig import P2pkhSolver, ScriptSig, MultisigScript, P2wshV0Scr
 from bitcoin.rpc import Proxy, InWarmupError
 import os
 import shutil
-from common import wif, crypto, utility
+from common import wif, crypto, utility, constants
 import subprocess
 import time
 from multiprocessing import Pool
@@ -41,11 +41,11 @@ def scaleCapacities(config, channels, nodes):
     :param config: config
     :param channels: channels objs
     """
-    div = utility.getScaleDiv(config.scalingUnits)
+    div = utility.getScaleDiv(constants.scalingUnits)
     for c in channels:
-        c.value = utility.scaleSatoshis(c.value, div, config.onchainSatoshiMinimum)
+        c.value = utility.scaleSatoshis(c.value, div, constants.onchainSatoshiMinimum)
     for n in nodes:
-        n.value = utility.scaleSatoshis(n.value, div, config.onchainSatoshiMinimum)
+        n.value = utility.scaleSatoshis(n.value, div, constants.onchainSatoshiMinimum)
 
 
 def blocksCoinbaseSpends(config, channels):
@@ -58,22 +58,22 @@ def blocksCoinbaseSpends(config, channels):
     coinbaseTxs = []
     currOutputs = []
     currOutputsValue = 0
-    txPerBlock = config.maxTxPerBlock
+    txPerBlock = constants.maxTxPerBlock
     blocks = []
-    coinbaseReward = config.coinbaseReward    #50 bitcoins
+    coinbaseReward = constants.coinbaseReward    #50 bitcoins
     copyChannels = channels.copy()
     copyChannels.sort(key=utility.sortByChanValue, reverse=True) #sorting in reverse because larger coinbase reward can comes first
     icbs = 1
     for i in range(0, len(copyChannels)):
         chan = copyChannels[i]
         value = chan.value
-        if (currOutputsValue + value + config.fee) < coinbaseReward and len(currOutputs) < config.maxOutputsPerTx:
+        if (currOutputsValue + value + config.fee) < coinbaseReward and len(currOutputs) < constants.maxOutputsPerTx:
             currOutputs += [chan]
             currOutputsValue += value
         else:
             coinbaseTxs += [(currOutputs, coinbaseReward)]
             icbs += 1
-            if icbs == config.halvingInterval:
+            if icbs == constants.halvingInterval:
                 coinbaseReward = int(coinbaseReward / 2)
                 icbs = 0
             currOutputs = [chan]
@@ -92,7 +92,7 @@ def blocksCoinbaseSpends(config, channels):
 
 def blocksFundingTxs(maxTxPerBlock, lstFundingTxs):
     """
-    separate the funding transactions into blocks with config.maxTxPerBlock amount
+    separate the funding transactions into blocks with constants.maxTxPerBlock amount
     :param maxTxPerBlock: maxTxPerBlock
     :param lstFundingTxs: list of funding txs
     :return: list of funding blocks
@@ -290,11 +290,11 @@ def init(config, blocksToMine):
     startBitcoind(config)
     objRpcB = Proxy(btc_conf_file=config.bitcoinConfPath)
     objRpcB = waitForBitcoind(config, objRpcB)
-    objPrivMiner = pycrypto.PrivateKey(config.bCoinbasePriv)
+    objPrivMiner = pycrypto.PrivateKey(constants.bCoinbasePriv)
     pubMiner = objPrivMiner.pub(compressed=True)
     xPubMiner = str(pubMiner)
     strAddrMiner = str(pubMiner.to_address(mainnet=False))
-    objRpcB = addPrivToBitcoind(config, objRpcB, config.iCoinbasePriv, xPubMiner, strAddrMiner)
+    objRpcB = addPrivToBitcoind(config, objRpcB, constants.iCoinbasePriv, xPubMiner, strAddrMiner)
     hundredBlockRounds = blocksToMine // 100
     remainder = blocksToMine % 100
     strBlockHashes = []
@@ -440,6 +440,6 @@ def sendRawTxs(config, objRpcB, xTxBlocks, strAddrMiner):
             txid, objRpcB = bitcoinCli(config, objRpcB, "sendrawtransaction", xtx)
         r, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", 1, strAddrMiner)
         blockHashes += r
-    r, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", 5, strAddrMiner)  # get 6 confirmations on last group of transactions
+    r, objRpcB = bitcoinCli(config, objRpcB, "generatetoaddress", constants.confirmations-1, strAddrMiner)  # get 6 confirmations on last group of transactions
     return blockHashes, objRpcB
 

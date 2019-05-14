@@ -7,8 +7,8 @@ from pickle import load, dump
 from igraph import Graph
 import csv
 
-# helper functions
 
+# helper functions
 
 def loadCSV(fp):
     reader = csv.reader(fp)
@@ -25,12 +25,12 @@ def loadJson(fp):
 
 
 def getSaveFiles(datadir, bitcoinBaseDataDir, name):
-    nodeSaveFile = datadir + name + "/" + name + ".nodes"
-    channelSaveFile = datadir + name + "/" + name + ".channels"
-    gossipSaveFile = datadir + name + "/" + name + ".gossip"
+    nodesFile = datadir + name + "/" + name + ".nodes"
+    channelsFile = datadir + name + "/" + name + ".channels"
+    gossipFile = datadir + name + "/" + name + ".gossip"
     scidSatoshisFile = datadir + name + "/" + "scidSatoshis" + ".csv"
     bitcoinDataDir = bitcoinBaseDataDir + name + "/" 
-    return nodeSaveFile, channelSaveFile, gossipSaveFile, scidSatoshisFile, bitcoinDataDir
+    return nodesFile, channelsFile, gossipFile, scidSatoshisFile, bitcoinDataDir
 
 def search(a, x):
     """

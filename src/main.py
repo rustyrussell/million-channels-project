@@ -1,10 +1,10 @@
-import buildNetwork
+import build
 import gossip
 import chain
 import argparse
 import importlib.util
 from bitcoin import SelectParams
-from common import graph, utility
+from common import graph, utility, constants
 from os import path, mkdir
 import time
 
@@ -34,10 +34,10 @@ def main():
             toGraph = True
         else:
             toGraph = False
-        targetNetwork = buildNetwork.initTargetNetwork(config, toGraph)
+        targetNetwork = build.initTargetNetwork(config, toGraph)
     if config.build:
         t0 = time.time()
-        network, targetNetwork, gossipSequence = buildNetwork.buildNetwork(config, targetNetwork)
+        network, targetNetwork, gossipSequence = build.buildNetwork(config, targetNetwork)
         t1 = time.time()
         print("build network complete in", t1-t0)
         network.printNetworkStats()
@@ -117,9 +117,10 @@ def parse():
     parse.add_argument("--scidSatoshisFile", type=str)
     parse.add_argument("--nodeFile", type=str)
     parse.add_argument("--gossipFile", type=str)
-    parse.add_argument("--lightningDataDir", type=str)
-    parse.add_argument("--bitcoindPath", type=str)
+    parse.add_argument("--bitcoinSrcDir", type=str)
+    parse.add_argument("--bitcoinBaseDataDir", type=str)
     parse.add_argument("--bitcoinDataDir", type=str)
+    parse.add_argument("--bitcoinConfPath", type=str)
 
     args = parse.parse_args()
     return args
@@ -162,12 +163,14 @@ def overrideConfig(args, config):
         config.nodeFile = args.nodeFile
     if args.gossipFile != None:
         config.gossipFile = args.gossipFile
-    if args.lightningDataDir != None:
-        config.lightningDataDir = args.lightningDataDir
-    if args.bitcoindPath != None:
-        config.bitcoindPath = args.bitcoindPath
+    if args.bitcoinSrcDir != None:
+        config.bitcoinSrcDir = args.bitcoinSrcDir
     if args.bitcoinDataDir != None:
         config.bitcoinDataDir = args.bitcoinDataDir
+    if args.bitcoinBaseDataDir != None:
+        config.bitcoinBaseDataDir = args.bitcoinBaseDataDir
+    if args.bitcoinConfPath != None:
+        config.bitcoinConfPath = args.bitcoinConfPath
 
     return config
 

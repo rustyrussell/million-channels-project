@@ -214,9 +214,6 @@ def createChannelUpdates(channel, a, timestamp, scid, value):
     u.setHTLCMSat(htlcMSat)
     u.setFeeBaseMSat(feeBaseMSat)
     u.setFeePropMill(feePropMill)
-    #value = int(channel.value)
-    #bValue = bytearray(value.to_bytes(8, byteorder="big"))
-    #u.setHTLCMaxMSat(bValue)
 
     u1 = createChannelUpdate(channel, node1, deepcopy(u), a)
     u2 = createChannelUpdate(channel, node2, deepcopy(u), a)

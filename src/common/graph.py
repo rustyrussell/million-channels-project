@@ -25,7 +25,7 @@ def simpleFreqPlot(x, y, plot=plt, xscale=False, yscale=False):
     plot.scatter(x, y)
 
     if xscale:
-        plt.xscale('log')      # this axis scales in log better than y-axis log scale
+        plt.xscale('log')   
     if yscale:
         plt.yscale('log')
 

@@ -33,7 +33,6 @@ class Node:
         self.setAnnounce(False)
         self.addrType = None
         self.value = 0
-        self.channels = []
         self.unallocated = 0
         self.allocation = 0
 

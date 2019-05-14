@@ -6,34 +6,24 @@ writeNodes = True
 gossipStore = False
 name = "1M"  # ex. "network_2-7-18"  <-- remember that all symbols must be able to be used in filenames and directories
 channelNum = 1000000
-maxChannels =  1000  # "default"  will base it off of a directly scaled snapshot of the network, but it will lead to very few nodes
+maxChannels =  10000  # "default"  will base it off of a directly scaled snapshot of the network, but it will lead to very few nodes
 maxFunding = 100000000 #"default" will base it off scaled max capacity node 
 fee = 50000
 randSeed = 2
 addrTypes = "all"
-saveDir = "../data/"
 processNum = 4
+saveDir = "../data/"
 listchannelsFile = saveDir + "channels_1-18-18.json"
 listnodesFile = saveDir + "nodes_1-18-18.json"
-scidSatoshisFile = saveDir + name + "/" + "scidSatoshis" + ".csv"
-nodesFile = saveDir + name + "/" + name + ".nodes"
-channelsFile = saveDir + name + "/" + name + ".channels"
-gossipFile = saveDir + name + "/" + name + ".gossip"
-historicalData = "../data/historical_data.csv"
-lightningDataDir = "/your/full/path/"
 bitcoinSrcDir = "/your/full/path/"
 bitcoinBaseDataDir = "/your/full/path/"
 bitcoinConfPath = "/your/full/path/"
-bitcoinDataDir = bitcoinBaseDataDir + name + "/"
 
-# cannot be changed by user:
-lightningrpc = lightningDataDir + "lightning-rpc"
-coinbaseReward = 5000000000    #50 bitcoins
-halvingInterval = 150
-maxOutputsPerTx = 1000
-scalingUnits = .000001  # units of cap
-confirmations = 6
-onchainSatoshiMinimum = 100
-maxTxPerBlock = 20 # 200 transactions in a block plus coinbase (which is at index 0)
-iCoinbasePriv = 100000000
-bCoinbasePriv = bytearray(iCoinbasePriv.to_bytes(32, "big"))
+
+#if the user doesn't change below, it will save in million-channels-project/data/name/...
+nodesFile = saveDir + name + "/" + name + ".nodes"
+channelsFile = saveDir + name + "/" + name + ".channels"
+gossipFile = saveDir + name + "/" + name + ".gossip"
+scidSatoshisFile = saveDir + name + "/" + "scidSatoshis" + ".csv"
+bitcoinDataDir = bitcoinBaseDataDir + name + "/" 
+
