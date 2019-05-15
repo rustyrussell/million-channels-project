@@ -13,8 +13,8 @@ randSeed = 2
 addrTypes = "all"
 processNum = 4
 saveDir = "../data/"
-listchannelsFile = saveDir + "channels_1-18-18.json"
-listnodesFile = saveDir + "nodes_1-18-18.json"
+listchannelsFile = saveDir + "channels_1-14-19.json"
+listnodesFile = saveDir + "nodes_1-14-19.json"
 bitcoinSrcDir = "/your/full/path/"
 bitcoinBaseDataDir = "/your/full/path/"
 bitcoinConfPath = "/your/full/path/"
@@ -26,4 +26,3 @@ channelsFile = saveDir + name + "/" + name + ".channels"
 gossipFile = saveDir + name + "/" + name + ".gossip"
 scidSatoshisFile = saveDir + name + "/" + "scidSatoshis" + ".csv"
 bitcoinDataDir = bitcoinBaseDataDir + name + "/" 
-

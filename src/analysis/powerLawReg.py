@@ -31,7 +31,11 @@ def powerLawExperiment(nodes, reg=True, params=None, graph=False, completeNetwor
     if graph:    #for plotting power law curve from experiment against new nodes scatterplot (called in build network)
         plt.rcParams.update({'font.size': 14})
         fig, ax = plt.subplots()
-        bounds = (1, max(x), 1)
+        if params[1] < 0:
+            lower = math.ceil(abs(paramsPer[1]))
+        else:
+            lower = 1
+        bounds = (lower, max(x), 1)
         g.simpleFreqPlot(x, yProb, plot=plt)
         g.plotFunction(powerLawFunc, params, bounds, xaxisDescription="channels", yaxisDescription="probability", plot=plt)
         plt.title("prob. dist. of channels across nodes.")
@@ -72,7 +76,6 @@ def powerLawFunc(xs, a, b, c):
     :param a: alpha
     :return: y
     """
-    #c is chosen so that integral 0<x<inf = 1.
     y = []
     for x in xs:
         y += [(c*pow(x+b, -1*a))]

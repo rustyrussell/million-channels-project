@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 from scipy import optimize
 from common import graph as g, utility
+from math import ceil
 from analysis import powerLawReg
 
 def channelCapacityInNode(nodes, graph=False, powerReg=False):
@@ -40,7 +41,11 @@ def channelCapacityInNode(nodes, graph=False, powerReg=False):
         #plot powerlaw
         plt.rcParams.update({'font.size': 14})
         fig, ax = plt.subplots()
-        bounds = (0, rankingSize, 1)
+        if paramsPer[1] < 0:
+            lower = abs(paramsPer[1]) + .001
+        else:
+            lower = 0
+        bounds = (lower, rankingSize, 1)
         g.simpleFreqPlot(xs, ysPer)
         xaxis = "channel in node by capacity (top " + str(rankingSize) + " greatest to least)"
         yaxis = "% of node capacity"
@@ -92,9 +97,8 @@ def nodeCapacityInNetPowLaw(scalingUnits, nodes, graph=False):
         y = ysWithZeros[i]
         if y > 0:
             ys += [y]
-            xs += [i]
+            xs += [i+1]
 
-    
     yProb = powerLawReg.freqDataToProbData(ys, sum(ys))
     params, covariance = powerLawReg.powerLawRegressionParam(xs, yProb)
 
@@ -102,7 +106,11 @@ def nodeCapacityInNetPowLaw(scalingUnits, nodes, graph=False):
         plt.rcParams.update({'font.size': 14})
         fig, ax = plt.subplots()
         g.simpleFreqPlot(xs, yProb)
-        bounds = (1, max(xs), 1)
+        if params[1] < 0:
+            lower = math.ceil(abs(paramsPer[1]))
+        else:
+            lower = 1
+        bounds = (lower, max(xs), 1)
         xaxis = "capacity * 10^-6 satoshis (smoothed distribution)"
         yaxis = "probability"
         g.plotFunction(powerLawReg.powerLawFunc, params, bounds, xaxis, yaxis)

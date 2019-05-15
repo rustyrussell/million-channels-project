@@ -1,10 +1,11 @@
 # million-channels-project
-The goal of this project is to create a large test network (>1M channels) with an accurate topology extrapolated from the current topology. 
+Use this project to create a large test lightning network (~1M channels) with an accurate topology extrapolated from the current topology. 
+
 This network can be used to test routing algorithms and optimize lightning implementations.
 
 ### Instructions on how to run without regenerating the network:
 
-1. Download 1M gossip and regtest chain: https://drive.google.com/drive/folders/10uda9L7EtwctCAoU9EzH3PnKMs7tx7Fd?usp=sharing 
+1. [Download](https://drive.google.com/drive/folders/1yKqV2Gg4H4zwun9ycP_LgCFGIY92-fVr?usp=sharing) 1M gossip and regtest chain
 
 2. A sample of the gossip produced can be found in data/1M/1M.gossip. 
    This file is split into smaller files. To combine files run:
