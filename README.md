@@ -5,30 +5,26 @@ This network can be used to test routing algorithms and optimize lightning imple
 
 ### Instructions on how to run without regenerating the network:
 
-1. [Download](https://drive.google.com/drive/folders/1yKqV2Gg4H4zwun9ycP_LgCFGIY92-fVr?usp=sharing) 1M gossip and regtest chain
+1. [Download](https://github.com/rustyrussell/million-channels-project-data) 1M gossip and regtest chain.
 
-2. A sample of the gossip produced can be found in data/1M/1M.gossip. 
-   This file is split into smaller files. To combine files run:
+2. To set up the bitcoin regtest blockchain, do:
 
-       `tar xfJ data.tar.xz`
+```
+rm -rf ~/.bitcoin/regtest && mkdir ~/.bitcoin/regtest
+tar xfa million-channels-project-data/v0.1/bitcoin/regtest_blocks.tar.xz
+mv blocks ~/.bitcoin/regtest
+```
 
-       `mv bitcoin ~\.bitcoin\1M` 
+3. For [c-lightning](https://github.com/ElementsProject/lightning), create a `gossip_store` (about 780MB) using the gossip files:
 
-3. Create gossip_store using gossip
+```
+cd lightning
+./configure --enable-developer && make
+# This will take about 30 seconds
+devtools/create-gossipstore -i <(xzcat ../million-channels-project-data/v0.1/gossip/1M.gossip.xz) -o ~/.lightning/gossip_store --csv <(xzcat ../million-channels-project-data/v0.1/gossip/scidSatoshis.csv.xz)
+```
 
-       `cd c-lightning`
-       
-       `./configure --enable-developer && make`
-
-       `cd devtools`
-       
-       run the following command with the downloaded gossip files:
-       `./create-gossipstore --verbose 100000 -i /path/to/gossip/1M.gossip -o ~/path/to/.lightning-datadir --csv /path/to/gossip/1M.scidSatoshis.csv`
-       
-
-4. Set fields in config.py that are currently set to /your/path/here (or pass in cmdline args to set them)
-
-5. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
+4. Run clightning, point it to the right .lightning directory, and watch it load gossip. 
     `./lightning-cli listchannels` <-- should return ~1M channels  
 
 ### Generating network or gossip from scratch
