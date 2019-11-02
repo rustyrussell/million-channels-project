@@ -7,6 +7,6 @@ scipy==1.2.0
 python-igraph
 numpy==1.16.0
 pycairo==1.18.0
-ecdsa==0.13
+ecdsa==0.13.3
 base58==1.0.3
 chainside-btcpy==0.6.4
